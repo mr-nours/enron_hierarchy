@@ -215,6 +215,13 @@ def find_cliques(graph):
 		done=new_done
 		smallcand = cand - pivotnbrs
 
+def compute_cliqueNumber(liste, node):
+	cpt = 0
+	for clique in liste :
+		if node in clique:
+			cpt = cpt+1
+	return cpt
+
 def main(graph): 
 	for edge in graph.getEdges():
 		graph.delEdge(edge)
@@ -223,3 +230,5 @@ def main(graph):
 	nodeName =  graph.getStringProperty("nodeName")
 	myParser = mailParser(graph, nodeName, "/net/cremi/cbadiola/travail/bioInfo/enron_mail_20110402/maildirtest/")
 	myParser.parse()
+
+
