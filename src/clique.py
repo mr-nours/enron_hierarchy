@@ -1,7 +1,12 @@
 from tulip import *
 
 def main(graph): 
-	print list(find_cliques(graph))
+	liste =  list(find_cliques(graph))
+	cliqueNumber =  graph.getIntegerProperty("cliqueNumber")
+	rawCliqueScore = graph.getDoubleProperty("rawCliqueScore")
+	for n in graph.getNodes():	
+		nbOccurence = compute_cliqueNumber(liste,n)
+		cliqueNumber.setNodeValue(n,nbOccurence)
 
 def find_cliques(graph):
 	#Cache nbrs and find first pivot (highest degree)
@@ -96,3 +101,9 @@ def find_cliques(graph):
 		done=new_done
 		smallcand = cand - pivotnbrs
 
+def compute_cliqueNumber(liste, node):
+	cpt = 0
+	for clique in liste :
+		if node in clique:
+			cpt = cpt+1
+	return cpt
