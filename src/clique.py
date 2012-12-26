@@ -8,6 +8,10 @@ def main(graph):
 		nbOccurence = compute_cliqueNumber(liste,n)
 		cliqueNumber.setNodeValue(n,nbOccurence)
 
+	ClusteringCoefficient = averageClusteringCoefficient(graph)
+	graph.applyAlgorithm('Betweeness Centrality')
+	print ClusteringCoefficient
+
 def find_cliques(graph):
 	#Cache nbrs and find first pivot (highest degree)
 	maxconn=-1
