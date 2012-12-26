@@ -122,134 +122,98 @@ class mailParser():
    				self.names[node] = adress
    			self.g.addEdge(expeditorNode, receptorNode)
 
-def find_cliques(G):
-    """
-    Search for all maximal cliques in a graph.
- 
-    This algorithm searches for maximal cliques in a graph.
-    maximal cliques are the largest complete subgraph containing
-    a given point.  The largest maximal clique is sometimes called
-    the maximum clique.
- 
-    This implementation is a generator of lists each
-    of which contains the members of a maximal clique.
-    To obtain a list of cliques, use list(find_cliques(G)).
-    The method essentially unrolls the recursion used in
-    the references to avoid issues of recursion stack depth.
+def find_cliques(graph):
+	#Cache nbrs and find first pivot (highest degree)
+	maxconn=-1
+	nnbrs={}
+	pivotnbrs=set() # handle empty graph
+	for n in graph.getNodes():
+		nbrs=set(graph.getInOutNodes(n))
+		nbrs.discard(n)
+		conn = len(nbrs)
+		if conn > maxconn:
+			nnbrs[n] = pivotnbrs = nbrs		
+			maxconn = conn	
+		else :
+			nnbrs[n] = nbrs 
 
-    Notes
-    -----
-    Based on the algorithm published by Bron & Kerbosch (1973) [1]_
-    as adapated by Tomita, Tanaka and Takahashi (2006) [2]_
-    and discussed in Cazals and Karande (2008) [3]_.
+	# Initial setup
+	cand=set(nnbrs)
+	smallcand = set(cand - pivotnbrs) 
+	done=set()
+	stack=[]
+	clique_so_far=[]
+	# Start main loop
+	while smallcand or stack:
+		try:
+			# Any nodes left to check?
+			n=smallcand.pop()
+		except KeyError:
+			# back out clique_so_far
+			cand,done,smallcand = stack.pop()
+			clique_so_far.pop()
+			continue
+          
+		# Add next node to clique
+		clique_so_far.append(n)
+		cand.remove(n) #on supprimer le noeud pivot de la liste
+		done.add(n)
+		nn=nnbrs[n] # on recupere les voisins du noeuds
+		new_cand = cand & nn
+		new_done = done & nn 
 
-    There are often many cliques in graphs.  This algorithm can
-    run out of memory for large graphs.
+		# check if we have more to search
+		if not new_cand: 
+			if not new_done:
+				# Found a clique!
+				yield clique_so_far[:]
+			clique_so_far.pop()
+			continue
 
-    References
-    ----------
-    .. [1] Bron, C. and Kerbosch, J. 1973. 
-       Algorithm 457: finding all cliques of an undirected graph. 
-       Commun. ACM 16, 9 (Sep. 1973), 575-577. 
-       http://portal.acm.org/citation.cfm?doid=362342.362367
-   
-    .. [2] Etsuji Tomita, Akira Tanaka, Haruhisa Takahashi, 
-       The worst-case time complexity for generating all maximal 
-       cliques and computational experiments, 
-       Theoretical Computer Science, Volume 363, Issue 1, 
-       Computing and Combinatorics, 
-       10th Annual International Conference on 
-       Computing and Combinatorics (COCOON 2004), 25 October 2006, Pages 28-42
-       http://dx.doi.org/10.1016/j.tcs.2006.06.015
+		# Shortcut--only one node left!
+		if not new_done and len(new_cand)==1:
+			yield clique_so_far + list(new_cand)
+			clique_so_far.pop()
+			continue
 
-    .. [3] F. Cazals, C. Karande, 
-       A note on the problem of reporting maximal cliques, 
-       Theoretical Computer Science,
-       Volume 407, Issues 1-3, 6 November 2008, Pages 564-568, 
-       http://dx.doi.org/10.1016/j.tcs.2008.05.010
-    """
+		# find pivot node (max connected in cand)
+		# look in done nodes first
+		numb_cand=len(new_cand)
+		maxconndone=-1
+		for n in new_done:
+			cn = new_cand & nnbrs[n]
+			conn=len(cn)
+			if conn > maxconndone:
+				pivotdonenbrs=cn
+				maxconndone=conn
+				if maxconndone==numb_cand:
+					break
+			
+		# Shortcut--this part of tree already searched
+		if maxconndone == numb_cand:  
+			clique_so_far.pop()
+			continue
+			
+		# still finding pivot node
+		# look in cand nodes second
+		maxconn=-1
+		for n in new_cand:
+			cn = new_cand & nnbrs[n]
+			conn=len(cn)
+			if conn > maxconn:
+				pivotnbrs=cn
+				maxconn=conn
+				if maxconn == numb_cand-1:
+					break 
 
-    # Cache nbrs and find first pivot (highest degree)
-    maxconn=-1
-    nnbrs={}
-    pivotnbrs=set() # handle empty graph
-    for n,nbrs in G.adjacency_iter():
-        conn = len(nbrs)
-        if conn > maxconn:
-            nnbrs[n] = pivotnbrs = set(nbrs)
-            maxconn = conn
-        else:
-            nnbrs[n] = set(nbrs)
-    # Initial setup
-    cand=set(nnbrs)
-    smallcand = cand - pivotnbrs
-    done=set()
-    stack=[]
-    clique_so_far=[]
-    # Start main loop
-    while smallcand or stack:
-        try:
-            # Any nodes left to check?
-            n=smallcand.pop()
-        except KeyError:
-            # back out clique_so_far
-            cand,done,smallcand = stack.pop()
-            clique_so_far.pop()
-            continue
-        # Add next node to clique
-        clique_so_far.append(n)
-        cand.remove(n)
-        done.add(n)
-        nn=nnbrs[n]
-        new_cand = cand & nn
-        new_done = done & nn
-        # check if we have more to search
-        if not new_cand: 
-            if not new_done:
-                # Found a clique!
-                yield clique_so_far[:]
-            clique_so_far.pop()
-            continue
-        # Shortcut--only one node left!
-        if not new_done and len(new_cand)==1:
-            yield clique_so_far + list(new_cand)
-            clique_so_far.pop()
-            continue
-        # find pivot node (max connected in cand)
-        # look in done nodes first
-        numb_cand=len(new_cand)
-        maxconndone=-1
-        for n in new_done:
-            cn = new_cand & nnbrs[n]
-            conn=len(cn)
-            if conn > maxconndone:
-                pivotdonenbrs=cn
-                maxconndone=conn
-                if maxconndone==numb_cand:
-                    break
-        # Shortcut--this part of tree already searched
-        if maxconndone == numb_cand:  
-            clique_so_far.pop()
-            continue
-        # still finding pivot node
-        # look in cand nodes second
-        maxconn=-1
-        for n in new_cand:
-            cn = new_cand & nnbrs[n]
-            conn=len(cn)
-            if conn > maxconn:
-                pivotnbrs=cn
-                maxconn=conn
-                if maxconn == numb_cand-1:
-                    break
-        # pivot node is max connected in cand from done or cand
-        if maxconndone > maxconn:
-            pivotnbrs = pivotdonenbrs
-        # save search status for later backout
-        stack.append( (cand, done, smallcand) )
-        cand=new_cand
-        done=new_done
-        smallcand = cand - pivotnbrs
+		# pivot node is max connected in cand from done or cand
+		if maxconndone > maxconn:
+			pivotnbrs = pivotdonenbrs
+		# save search status for later backout
+		stack.append( (cand, done, smallcand) )
+		cand=new_cand
+		done=new_done
+		smallcand = cand - pivotnbrs
 
 def main(graph): 
 	for edge in graph.getEdges():
