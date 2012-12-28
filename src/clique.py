@@ -1,16 +1,32 @@
 from tulip import *
+import math
+
 
 def main(graph): 
-	liste =  list(find_cliques(graph))
-	cliqueNumber =  graph.getIntegerProperty("cliqueNumber")
-	rawCliqueScore = graph.getDoubleProperty("rawCliqueScore")
+	nodeDegree =  graph.getDoubleProperty("nodeDegree")
+	nodeCentrality =  graph.getDoubleProperty("nodeCentrality")
+	cliqueNumber =  graph.getIntegerProperty("cliqueNumber")	
+	liste = list(find_cliques(graph))
+	CliqueList = []
+	
+	for clique in liste:	
+		rawCliqueScore = 2 * math.exp(len(clique)-1)
+		pair = clique, rawCliqueScore
+		CliqueList.append(pair) 
+
+	print CliqueList
+
+	#The number of cliques that the account is contained within
 	for n in graph.getNodes():	
 		nbOccurence = compute_cliqueNumber(liste,n)
 		cliqueNumber.setNodeValue(n,nbOccurence)
+	
+	
+	clusteringCoefficient = tlp.averageClusteringCoefficient(graph)
+	shortestPathLength = tlp.averagePathLength(graph)
+	graph.computeDoubleProperty("Degree", nodeDegree)
+	graph.computeDoubleProperty("Betweenness Centrality", nodeCentrality)	
 
-	ClusteringCoefficient = averageClusteringCoefficient(graph)
-	graph.applyAlgorithm('Betweeness Centrality')
-	print ClusteringCoefficient
 
 def find_cliques(graph):
 	#Cache nbrs and find first pivot (highest degree)
