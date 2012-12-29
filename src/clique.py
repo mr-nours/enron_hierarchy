@@ -1,32 +1,38 @@
 from tulip import *
 import math
 
-
 def main(graph): 
 	nodeDegree =  graph.getDoubleProperty("nodeDegree")
 	nodeCentrality =  graph.getDoubleProperty("nodeCentrality")
 	cliqueNumber =  graph.getIntegerProperty("cliqueNumber")	
+	rawUserCliqueScore = graph.getDoubleProperty("rawUserCliqueScore")
+	weightedUserCliqueScore = graph.getDoubleProperty("weightedUserCliqueScore")
+	clusteringCoefficient = graph.getDoubleProperty("clusteringCoefficient")
+	timeScore = graph.getDoubleProperty("timeScore")
 	liste = list(find_cliques(graph))
-	CliqueList = []
-	
-	for clique in liste:	
-		rawCliqueScore = 2 * math.exp(len(clique)-1)
-		pair = clique, rawCliqueScore
-		CliqueList.append(pair) 
 
-	print CliqueList
-
-	#The number of cliques that the account is contained within
+	# Structural indicators
 	for n in graph.getNodes():	
 		nbOccurence = compute_cliqueNumber(liste,n)
-		cliqueNumber.setNodeValue(n,nbOccurence)
-	
-	
-	clusteringCoefficient = tlp.averageClusteringCoefficient(graph)
+		cliqueNumber.setNodeValue(n,nbOccurence)	
+		CliqueScore = compute_RawCliqueScore(liste,n)
+		rawUserCliqueScore.setNodeValue(n, CliqueScore)
+		weightedScore = compute_weightedCliqueScore(liste,n,timeScore.getNodeValue(n))
+		
+	#Assigns to each node its local clustering coefficient	
+	tlp.clusteringCoefficient(graph,clusteringCoefficient,graph.numberOfNodes())
+
 	shortestPathLength = tlp.averagePathLength(graph)
 	graph.computeDoubleProperty("Degree", nodeDegree)
 	graph.computeDoubleProperty("Betweenness Centrality", nodeCentrality)	
 
+	# Normalisation des indicateurs sur une echelle [0-100]
+	NormalizeMetricValue(graph,cliqueNumber)
+	NormalizeMetricValue(graph,rawUserCliqueScore)
+	#NormalizeMetricValue(graph,weightedUserCliqueScore)
+	NormalizeMetricValue(graph,nodeDegree)
+	NormalizeMetricValue(graph,clusteringCoefficient)
+	NormalizeMetricValue(graph,nodeCentrality)
 
 def find_cliques(graph):
 	#Cache nbrs and find first pivot (highest degree)
@@ -127,3 +133,33 @@ def compute_cliqueNumber(liste, node):
 		if node in clique:
 			cpt = cpt+1
 	return cpt
+
+def compute_RawCliqueScore(liste, node) :
+	rawCliqueScore = 0
+	for clique in liste:
+		if node in clique:
+			rawCliqueScore = 2 * math.exp(len(clique)-1) + rawCliqueScore
+	return rawCliqueScore
+
+def compute_weightedCliqueScore(liste, node, time) :
+	weightedCliqueScore = 0
+	for clique in liste:
+		if node in clique:
+			weightedCliqueScore = time * 2 * math.exp(len(clique)-1) + weightedCliqueScore
+	return weightedCliqueScore
+
+# Normalize the metric on mapped to a [0, 100] scale
+def NormalizeMetricValue(graph, metric) :
+	min = metric.getNodeValue(graph.getOneNode())
+	max = metric.getNodeValue(graph.getOneNode())
+		
+	for n in graph.getNodes():
+		valeur = metric.getNodeValue(n)
+		if valeur > max:
+			max = valeur
+		if valeur < min:
+			min = valeur	
+
+	for n in graph.getNodes():
+		normalizedValue = (100 * ((metric.getNodeValue(n) - min) / (max - min)))
+		metric.setNodeValue(n, normalizedValue)
