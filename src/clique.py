@@ -8,6 +8,7 @@ def main(graph):
 	rawUserCliqueScore = graph.getDoubleProperty("rawUserCliqueScore")
 	weightedUserCliqueScore = graph.getDoubleProperty("weightedUserCliqueScore")
 	clusteringCoefficient = graph.getDoubleProperty("clusteringCoefficient")
+	shortestPath = graph.getDoubleProperty("shortestPath")
 	timeScore = graph.getDoubleProperty("timeScore")
 	liste = list(find_cliques(graph))
 
@@ -24,7 +25,12 @@ def main(graph):
 
 	shortestPathLength = tlp.averagePathLength(graph)
 	graph.computeDoubleProperty("Degree", nodeDegree)
-	graph.computeDoubleProperty("Betweenness Centrality", nodeCentrality)	
+	graph.computeDoubleProperty("Betweenness Centrality", nodeCentrality)
+
+	dataSet = tlp.DataSet()
+	dataSet["closeness centrality"] = True
+	dataSet["norm"] = False
+	graph.computeDoubleProperty("Eccentricity", shortestPath, dataSet)
 
 	# Normalisation des indicateurs sur une echelle [0-100]
 	NormalizeMetricValue(graph,cliqueNumber)
