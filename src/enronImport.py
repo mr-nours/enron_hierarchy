@@ -13,7 +13,11 @@ class mailParser():
 		self.g = graph
 		self.names = nodeName
 		self.color = self.g.getColorProperty("viewColor")
+		self.receivedMails = self.g.getIntegerProperty("received_mails")
+		self.sentMails = self.g.getIntegerProperty("sent_mails")
+		self.avgResponseTime = self.g.getDoubleProperty("response_time")
 		self.users = {}
+		self.link = {}
 		self.d = timedelta(days = 4)
 	
 	def parse_sent(self, person):
@@ -35,7 +39,7 @@ class mailParser():
 			if type(msg['From']) is str:
 				expeditor = msg['From']
 				expeditors.append(expeditor)
-			self.register(expeditor, recipients)
+			self.register(expeditor, recipients, person)
 			currentMail.close()
 		self.users[person]["sent_mails"] = sent_mails
 		self.personWithMultipleAdress(list(set(expeditors)))
@@ -82,6 +86,7 @@ class mailParser():
 			self.users[person]["response_time"] = 0.0
 			self.parse_sent(person)
 			self.parse_received(person)
+			self.propertiesToTulipProperties()
 		#    print self.users
 	
 	def personWithMultipleAdress(self, otherAdresses):
@@ -95,9 +100,10 @@ class mailParser():
 			edge = self.g.addEdge(firstNode, otherNode)
 			self.color[edge] = tlp.Color(255, 0, 0)
 	
-	def register(self, expeditor, recipients):
+	def register(self, expeditor, recipients, person):
 		#Traitement de l'expediteur
 		flag = False
+		expeditor = expeditor.strip()
 		for nodes in self.g.getNodes():
 			if expeditor in self.names[nodes]:
 				flag = True
@@ -106,7 +112,8 @@ class mailParser():
 		if not flag:
 			node = self.g.addNode()
 			expeditorNode = node
-			self.names[node] = expeditor.strip()
+			self.names[node] = expeditor			
+			self.link[person] = node
 		#Traitement des recepteurs
 		for adress in recipients:
 			adress = adress.strip()
@@ -121,6 +128,12 @@ class mailParser():
 				receptorNode = node
 				self.names[node] = adress
 			self.g.addEdge(expeditorNode, receptorNode)
+	
+	def propertiesToTulipProperties(self):
+		for person, node in self.link.items():
+			self.receivedMails[node] = self.users[person]["received_mails"]
+			self.sentMails[node] = self.users[person]["sent_mails"]
+			self.avgResponseTime[node] = self.users[person]["response_time"]
 
 
 #End of MailParse class
@@ -274,6 +287,6 @@ def main(graph):
     myParser.parse()
     auth = graph.getDoubleProperty("auth")
     hub = graph.getDoubleProperty("hub")
-    hits(graph, auth, hub)
+    hits(graph, auth, hub)#TODO: A re-normaliser
 
 
