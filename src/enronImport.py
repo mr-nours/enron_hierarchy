@@ -8,16 +8,17 @@ import os
 import math
 
 class mailParser():
-	def __init__(self, graph, nodeName, filepath):
+	def __init__(self, graph, filepath):
 		self.f = filepath
 		self.g = graph
-		self.names = nodeName
+		self.names = self.g.getStringProperty("nodeName")
 		self.color = self.g.getColorProperty("viewColor")
 		self.receivedMails = self.g.getIntegerProperty("received_mails")
 		self.sentMails = self.g.getIntegerProperty("sent_mails")
 		self.avgResponseTime = self.g.getDoubleProperty("response_time")
 		self.users = {}
 		self.link = {}
+		self.peer = {}
 		self.d = timedelta(days = 4)
 	
 	def parse_sent(self, person):
@@ -39,7 +40,8 @@ class mailParser():
 					self.users[person]["sent_list"].append([to.strip(),date])
 			if type(msg['From']) is str:
 				expeditor = msg['From']
-				expeditors.append(expeditor) 
+				expeditors.append(expeditor)
+				self.peer[expeditor.strip()] = person
 			self.register(expeditor, recipients, person)
 			currentMail.close()
 		self.personWithMultipleAdress(list(set(expeditors)))
@@ -85,8 +87,24 @@ class mailParser():
 			self.users[person]["response_time"] = 0.0
 			self.parse_sent(person)
 			self.parse_received(person)
+			#self.computeResponseTime(person)
 			self.propertiesToTulipProperties()
 		#    print self.users
+	
+	def computeResponseTime(self, person):
+		guyMails = []
+		# Determines the guy's "person" mails.
+		for mail in self.peer:
+			if self.peer[mail] == person:
+				guyMails.append(mail)
+		# For each mail sent, we check if there is a response to one of guy's "person" mails.
+		for pair in self.users[person]["sent_list"]: 
+			for mail in pair[0]: 
+				# If the sent mail has an enron employee associated to itself.
+				if self.peer.has_key(mail):
+					for p in self.users[self.peer[mail]]["sent_list"]:
+						for m in p[0]:
+							pass
 	
 	def personWithMultipleAdress(self, otherAdresses):
 		first = otherAdresses.pop()
@@ -280,6 +298,7 @@ def compute_mailNumber(graph,receivedMails,sentMails,totalMail):
 		totalMail[n] = receivedMails[n] + sentMails[n]
 
 def main(graph): 
+
 	for edge in graph.getEdges():
 		graph.delEdge(edge)
 	for node in graph.getNodes():
@@ -311,6 +330,7 @@ def main(graph):
 	
 	# Computation of Metrics
 	compute_mailNumber(graph,receivedMails,sentMails,totalMail)
+
 
 
 	#hits(graph, auth, hub)
