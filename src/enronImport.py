@@ -91,24 +91,34 @@ class mailParser():
 			self.users[person]["response_time"] = 0.0
 			self.parse_sent(person)
 			self.parse_received(person)
-			#self.computeResponseTime(person)
+			self.computeResponseTime(person)
 			self.propertiesToTulipProperties()
 		#    print self.users
 	
 	def computeResponseTime(self, person):
+		delta_cpt = 0
 		guyMails = []
 		# Determines the guy's "person" mails.
 		for mail in self.peer:
 			if self.peer[mail] == person:
 				guyMails.append(mail)
+		print(guyMails)
 		# For each mail sent, we check if there is a response to one of guy's "person" mails.
-		for pair in self.users[person]["sent_list"]: 
-			for mail in pair[0]: 
-				# If the sent mail has an enron employee associated to itself.
-				if self.peer.has_key(mail):
-					for p in self.users[self.peer[mail]]["sent_list"]:
-						for m in p[0]:
-							pass
+		for pair in self.users[person]["sent_list"]:  
+			# If the destination mail has an enron employee associated to itself.
+			if self.peer.has_key(pair[0]):
+				for p in self.users[self.peer[pair[0]]]["sent_list"]:
+					# Response may be found
+					if p[0] in guyMails:
+						if p[1] > pair[1]:
+							delta = p[1] - pair[1]
+							if delta <= self.d:
+								delta_cpt = delta_cpt + 1
+								self.users[person]["response_time"] = self.users[person]["response_time"] + delta.total_seconds()
+								print("found")
+								break
+		if delta_cpt > 0:
+			self.users[person]["response_time"] = self.users[person]["response_time"] / delta_cpt
 	
 	def personWithMultipleAdress(self, otherAdresses):
 		first = otherAdresses.pop()
