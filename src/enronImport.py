@@ -22,6 +22,8 @@ class mailParser():
 	
 	def parse_sent(self, person):
 		pathToParse = self.f + person + "/sent_items/"
+		if not os.path.exists(pathToParse):
+			pathToParse = self.f + person + "/sent/"
 		listing_sent = os.listdir(pathToParse)
 		expeditors = []
 		sent_mails = 0
@@ -42,7 +44,8 @@ class mailParser():
 			self.register(expeditor, recipients, person)
 			currentMail.close()
 		self.users[person]["sent_mails"] = sent_mails
-		self.personWithMultipleAdress(list(set(expeditors)))
+		if len(expeditors) > 1:
+			self.personWithMultipleAdress(list(set(expeditors)))
 		
 	def parse_received(self, person):
 		pathToParse = self.f + person + "/inbox/"
