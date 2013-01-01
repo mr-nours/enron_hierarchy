@@ -44,7 +44,7 @@ class mailParser():
 			self.register(expeditor, recipients, person)
 			currentMail.close()
 		self.users[person]["sent_mails"] = sent_mails
-		if len(expeditors) > 1:
+		if len(set(expeditors)) > 1:
 			self.personWithMultipleAdress(list(set(expeditors)))
 		
 	def parse_received(self, person):
