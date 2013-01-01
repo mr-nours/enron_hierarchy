@@ -325,7 +325,7 @@ def main(graph):
 	# Email Corpus parsing   
    #enronpath = "/net/cremi/cbadiola/travail/bioInfo/enron_mail_20110402/maildirtest/"
 	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
-	myParser = mailParser(graph, nodeName, enronpath)
+	myParser = mailParser(graph, enronpath)
 	myParser.parse()
 	
 	# Computation of Metrics
