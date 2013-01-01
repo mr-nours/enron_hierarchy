@@ -10,7 +10,13 @@ def main(graph):
 	clusteringCoefficient = graph.getDoubleProperty("clusteringCoefficient")
 	shortestPath = graph.getDoubleProperty("shortestPath")
 	timeScore = graph.getDoubleProperty("timeScore")
+	socialScore = graph.getDoubleProperty("socialScore")
+
+	auth = graph.getDoubleProperty("auth")
+	hub = graph.getDoubleProperty("hub")
+	
 	liste = list(find_cliques(graph))
+	hits(graph, auth, hub)	
 
 	# Structural indicators
 	for n in graph.getNodes():	
@@ -39,6 +45,10 @@ def main(graph):
 	NormalizeMetricValue(graph,nodeDegree)
 	NormalizeMetricValue(graph,clusteringCoefficient)
 	NormalizeMetricValue(graph,nodeCentrality)
+
+	# List of metrics with their weight to compute the social score
+	metrics = {nodeDegree:1,nodeCentrality:1,cliqueNumber:1,rawUserCliqueScore:1,weightedUserCliqueScore:1,clusteringCoefficient:1,shortestPath:1,timeScore:1,socialScore:1}
+	compute_SocialScore(graph,metrics,socialScore)
 
 def find_cliques(graph):
 	#Cache nbrs and find first pivot (highest degree)
@@ -169,3 +179,49 @@ def NormalizeMetricValue(graph, metric) :
 	for n in graph.getNodes():
 		normalizedValue = (100 * ((metric.getNodeValue(n) - min) / (max - min)))
 		metric.setNodeValue(n, normalizedValue)
+
+def compute_SocialScore(graph, metrics, storageProperty) :
+	for n in graph.getNodes():
+		totalWeightedContribution = 0	
+		totalWeigth = 0	
+		for metric,weight in metrics.items():
+			totalWeightedContribution = totalWeightedContribution + metric.getNodeValue(n) * weight
+			totalWeigth = totalWeigth + weight		
+		score = totalWeightedContribution/totalWeigth
+		storageProperty.setNodeValue(n,score)
+
+def hits(graph, auth, hub, max_iter=100, tol=1.0e-8):
+	i = 0
+	for n in graph.getNodes():
+		auth[n] = hub[n] = 1.0 / graph.numberOfNodes()
+	while True:
+		hublast = hub
+		norm = 1.0
+		normsum = 0
+		err = 0
+		for n in graph.getNodes():
+			auth[n] = 0
+			for v in graph.getInNodes(n):
+				auth[n] = auth[n] + hub[v]
+			normsum = normsum + auth[n]
+		norm = norm / normsum
+		for n in graph.getNodes():
+			auth[n] = auth[n] * norm
+		norm = 1.0
+		for n in graph.getNodes():
+			hub[n] = 0
+			for v in graph.getOutNodes(n):
+				hub[n] = hub[n] + auth[v]
+			normsum = normsum + hub[n]
+		norm = norm / normsum
+		for n in graph.getNodes():
+			hub[n] = hub[n] * norm
+		for n in graph.getNodes():
+			err = err + abs(hub[n] - hublast[n])
+		if err < tol:
+			break
+		if i > max_iter:
+			raise HITSError(\
+			"HITS: failed to converge in %d iterations."%(i+1))
+		i = i + 1
+	return auth,hub

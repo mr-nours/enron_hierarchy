@@ -27,11 +27,10 @@ class mailParser():
 			pathToParse = self.f + person + "/sent/"
 		listing_sent = os.listdir(pathToParse)
 		expeditors = []
-		sent_mails = 0
 		self.users[person]["sent_list"] = []
+
 		# For each mail sent
 		for file in listing_sent:
-			sent_mails = sent_mails + 1
 			currentMail = open(pathToParse+file, 'rb')
 			msg = Parser().parse(currentMail)
 			if type(msg['To']) is str:
@@ -45,18 +44,16 @@ class mailParser():
 				self.peer[expeditor.strip()] = person
 			self.register(expeditor, recipients, person)
 			currentMail.close()
-		self.users[person]["sent_mails"] = sent_mails
+		self.personWithMultipleAdress(list(set(expeditors)))
 		if len(set(expeditors)) > 1:
 			self.personWithMultipleAdress(list(set(expeditors)))
 		
 	def parse_received(self, person):
 		pathToParse = self.f + person + "/inbox/"
 		listing_received = os.listdir(pathToParse)
-		received_mails = 0
 		delta_cpt = 0
 		for file in listing_received:
 			if os.path.isfile(pathToParse+file):
-				received_mails = received_mails + 1
 				currentMail = open(pathToParse+file, 'rb')
 				msg = Parser().parse(currentMail)
 				if type(msg['From']) is str:
@@ -69,10 +66,9 @@ class mailParser():
 								if delta <= self.d:
 									delta_cpt = delta_cpt + 1
 									self.users[person]["response_time"] = self.users[person]["response_time"] + delta.total_seconds()
-									break
-		self.users[person]["received_mails"] = received_mails
-		self.users[person]["response_time"] = self.users[person]["response_time"] / delta_cpt
-		#print(received_mails)
+									break	
+		if delta_cpt > 0:
+			self.users[person]["response_time"] = self.users[person]["response_time"] / delta_cpt
 	
 	def extractDateFromMsg(self, msg):
 		date = None
@@ -136,7 +132,7 @@ class mailParser():
 		flag = False
 		expeditor = expeditor.strip()
 		for nodes in self.g.getNodes():
-			if expeditor in self.names[nodes]:
+			if expeditor == self.names[nodes]:
 				flag = True
 				expeditorNode = nodes
 				break
@@ -145,12 +141,14 @@ class mailParser():
 			expeditorNode = node
 			self.names[node] = expeditor			
 			self.link[person] = node
+		self.sentMails[expeditorNode] = self.sentMails[expeditorNode] + 1 
+
 		#Traitement des recepteurs
 		for adress in recipients:
 			adress = adress.strip()
 			flag = False
 			for node in self.g.getNodes():
-				if adress in self.names[node]:
+				if adress == self.names[node]:
 					flag = True
 					receptorNode = node
 					break
@@ -158,12 +156,12 @@ class mailParser():
 				node = self.g.addNode()
 				receptorNode = node
 				self.names[node] = adress
+			
 			self.g.addEdge(expeditorNode, receptorNode)
+			self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1 
 	
 	def propertiesToTulipProperties(self):
 		for person, node in self.link.items():
-			self.receivedMails[node] = self.users[person]["received_mails"]
-			self.sentMails[node] = self.users[person]["sent_mails"]
 			self.avgResponseTime[node] = self.users[person]["response_time"]
 
 
@@ -305,18 +303,44 @@ def hits(graph, auth, hub, max_iter=100, tol=1.0e-8):
 		i = i + 1
 	return auth,hub
 	
+def compute_mailNumber(graph,receivedMails,sentMails,totalMail):
+	for n in graph.getNodes():
+		totalMail[n] = receivedMails[n] + sentMails[n]
 
 def main(graph): 
-    for edge in graph.getEdges():
-        graph.delEdge(edge)
-    for node in graph.getNodes():
-        graph.delNode(node)
-    #enronpath = "/net/cremi/cbadiola/travail/bioInfo/enron_mail_20110402/maildirtest/"
-    enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-    myParser = mailParser(graph, enronpath)
-    myParser.parse()
-    auth = graph.getDoubleProperty("auth")
-    hub = graph.getDoubleProperty("hub")
-    hits(graph, auth, hub)#TODO: A re-normaliser
+
+	for edge in graph.getEdges():
+		graph.delEdge(edge)
+	for node in graph.getNodes():
+		graph.delNode(node)
+
+	#Properties of the graph
+	nodeName = graph.getStringProperty("nodeName")
+	nodeDegree =  graph.getDoubleProperty("nodeDegree")
+	nodeCentrality =  graph.getDoubleProperty("nodeCentrality")
+	cliqueNumber =  graph.getIntegerProperty("cliqueNumber")	
+	rawUserCliqueScore = graph.getDoubleProperty("rawUserCliqueScore")
+	weightedUserCliqueScore = graph.getDoubleProperty("weightedUserCliqueScore")
+	clusteringCoefficient = graph.getDoubleProperty("clusteringCoefficient")
+	shortestPath = graph.getDoubleProperty("shortestPath")
+	socialScore = graph.getDoubleProperty("socialScore")
+	auth = graph.getDoubleProperty("auth")
+	hub = graph.getDoubleProperty("hub")
+	color = graph.getColorProperty("viewColor")
+	receivedMails = graph.getIntegerProperty("received_mails")
+	sentMails = graph.getIntegerProperty("sent_mails")
+	totalMail = graph.getIntegerProperty("totalMail")
+	avgResponseTime = graph.getDoubleProperty("response_time")
+
+	# Email Corpus parsing   
+   #enronpath = "/net/cremi/cbadiola/travail/bioInfo/enron_mail_20110402/maildirtest/"
+	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
+	myParser = mailParser(graph, enronpath)
+	myParser.parse()
+	
+	# Computation of Metrics
+	compute_mailNumber(graph,receivedMails,sentMails,totalMail)
 
 
+
+	#hits(graph, auth, hub)
