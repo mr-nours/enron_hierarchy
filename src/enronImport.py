@@ -44,7 +44,7 @@ class mailParser():
 				self.peer[expeditor.strip()] = person
 				self.register(expeditor, recipients, person)
 			currentMail.close()
-		self.personWithMultipleAdress(list(set(expeditors)))
+		#self.personWithMultipleAdress(list(set(expeditors)))
 		if len(set(expeditors)) > 1:
 			self.personWithMultipleAdress(list(set(expeditors)))
 		
@@ -125,7 +125,9 @@ class mailParser():
 					otherNode = node
 				if first == self.names[node]:
 					firstNode = node
-			edge = self.g.addEdge(firstNode, otherNode)
+			edge = self.g.existEdge(firstNode, otherNode)
+			if not edge.isValid():
+				edge = self.g.addEdge(firstNode, otherNode)
 			self.color[edge] = tlp.Color(255, 0, 0)
 	
 	def register(self, expeditor, recipients, person):
@@ -159,8 +161,10 @@ class mailParser():
 			if not flag:
 				node = self.g.addNode()
 				receptorNode = node
-				self.names[node] = adress			
-			self.g.addEdge(expeditorNode, receptorNode)
+				self.names[node] = adress
+			edge = self.g.existEdge(expeditorNode, receptorNode)
+			if not edge.isValid():
+				self.g.addEdge(expeditorNode, receptorNode)
 			self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1 
 	
 	def propertiesToTulipProperties(self):
@@ -169,147 +173,145 @@ class mailParser():
 
 
 #End of MailParse class
-    
-def hits(graph, auth, hub, max_iter=100, tol=1.0e-8):
-	i = 0
-	for n in graph.getNodes():
-		auth[n] = hub[n] = 1.0 / graph.numberOfNodes()
-	while True:
-		hublast = hub
-		norm = 1.0
-		normsum = 0
-		err = 0
-		for n in graph.getNodes():
-			auth[n] = 0
-			for v in graph.getInNodes(n):
-				auth[n] = auth[n] + hub[v]
-			normsum = normsum + auth[n]
-		norm = norm / normsum
-		for n in graph.getNodes():
-			auth[n] = auth[n] * norm
-		norm = 1.0
-		for n in graph.getNodes():
-			hub[n] = 0
-			for v in graph.getOutNodes(n):
-				hub[n] = hub[n] + auth[v]
-			normsum = normsum + hub[n]
-		norm = norm / normsum
-		for n in graph.getNodes():
-			hub[n] = hub[n] * norm
-		for n in graph.getNodes():
-			err = err + abs(hub[n] - hublast[n])
-		if err < tol:
-			break
-		if i > max_iter:
-			raise HITSError(\
-			"HITS: failed to converge in %d iterations."%(i+1))
-		i = i + 1
-	return auth,hub
-	
 
 def find_cliques(graph):
-	#Cache nbrs and find first pivot (highest degree)
-	maxconn=-1
-	nnbrs={}
-	pivotnbrs=set() # handle empty graph
-	for n in graph.getNodes():
-		nbrs=set(graph.getInOutNodes(n))
-		nbrs.discard(n)
-		conn = len(nbrs)
-		if conn > maxconn:
-			nnbrs[n] = pivotnbrs = nbrs		
-			maxconn = conn	
-		else :
-			nnbrs[n] = nbrs 
+    #Cache nbrs and find first pivot (highest degree)
+    maxconn=-1
+    nnbrs={}
+    pivotnbrs=set() # handle empty graph
+    for n in graph.getNodes():
+        nbrs=set(graph.getInOutNodes(n))
+        nbrs.discard(n)
+        conn = len(nbrs)
+        if conn > maxconn:
+            nnbrs[n] = pivotnbrs = nbrs     
+            maxconn = conn  
+        else :
+            nnbrs[n] = nbrs 
 
-	# Initial setup
-	cand=set(nnbrs)
-	smallcand = set(cand - pivotnbrs) 
-	done=set()
-	stack=[]
-	clique_so_far=[]
-	# Start main loop
-	while smallcand or stack:
-		try:
-			# Any nodes left to check?
-			n=smallcand.pop()
-		except KeyError:
-			# back out clique_so_far
-			cand,done,smallcand = stack.pop()
-			clique_so_far.pop()
-			continue
+    # Initial setup
+    cand=set(nnbrs)
+    smallcand = set(cand - pivotnbrs) 
+    done=set()
+    stack=[]
+    clique_so_far=[]
+    # Start main loop
+    while smallcand or stack:
+        try:
+            # Any nodes left to check?
+            n=smallcand.pop()
+        except KeyError:
+            # back out clique_so_far
+            cand,done,smallcand = stack.pop()
+            clique_so_far.pop()
+            continue
           
-		# Add next node to clique
-		clique_so_far.append(n)
-		cand.remove(n) #on supprimer le noeud pivot de la liste
-		done.add(n)
-		nn=nnbrs[n] # on recupere les voisins du noeuds
-		new_cand = cand & nn
-		new_done = done & nn 
+        # Add next node to clique
+        clique_so_far.append(n)
+        cand.remove(n) #on supprimer le noeud pivot de la liste
+        done.add(n)
+        nn=nnbrs[n] # on recupere les voisins du noeuds
+        new_cand = cand & nn
+        new_done = done & nn 
 
-		# check if we have more to search
-		if not new_cand: 
-			if not new_done:
-				# Found a clique!
-				yield clique_so_far[:]
-			clique_so_far.pop()
-			continue
+        # check if we have more to search
+        if not new_cand: 
+            if not new_done:
+                # Found a clique!
+                yield clique_so_far[:]
+            clique_so_far.pop()
+            continue
 
-		# Shortcut--only one node left!
-		if not new_done and len(new_cand)==1:
-			yield clique_so_far + list(new_cand)
-			clique_so_far.pop()
-			continue
+        # Shortcut--only one node left!
+        if not new_done and len(new_cand)==1:
+            yield clique_so_far + list(new_cand)
+            clique_so_far.pop()
+            continue
 
-		# find pivot node (max connected in cand)
-		# look in done nodes first
-		numb_cand=len(new_cand)
-		maxconndone=-1
-		for n in new_done:
-			cn = new_cand & nnbrs[n]
-			conn=len(cn)
-			if conn > maxconndone:
-				pivotdonenbrs=cn
-				maxconndone=conn
-				if maxconndone==numb_cand:
-					break
-			
-		# Shortcut--this part of tree already searched
-		if maxconndone == numb_cand:  
-			clique_so_far.pop()
-			continue
-			
-		# still finding pivot node
-		# look in cand nodes second
-		maxconn=-1
-		for n in new_cand:
-			cn = new_cand & nnbrs[n]
-			conn=len(cn)
-			if conn > maxconn:
-				pivotnbrs=cn
-				maxconn=conn
-				if maxconn == numb_cand-1:
-					break 
+        # find pivot node (max connected in cand)
+        # look in done nodes first
+        numb_cand=len(new_cand)
+        maxconndone=-1
+        for n in new_done:
+            cn = new_cand & nnbrs[n]
+            conn=len(cn)
+            if conn > maxconndone:
+                pivotdonenbrs=cn
+                maxconndone=conn
+                if maxconndone==numb_cand:
+                    break
+            
+        # Shortcut--this part of tree already searched
+        if maxconndone == numb_cand:  
+            clique_so_far.pop()
+            continue
+            
+        # still finding pivot node
+        # look in cand nodes second
+        maxconn=-1
+        for n in new_cand:
+            cn = new_cand & nnbrs[n]
+            conn=len(cn)
+            if conn > maxconn:
+                pivotnbrs=cn
+                maxconn=conn
+                if maxconn == numb_cand-1:
+                    break 
 
-		# pivot node is max connected in cand from done or cand
-		if maxconndone > maxconn:
-			pivotnbrs = pivotdonenbrs
-		# save search status for later backout
-		stack.append( (cand, done, smallcand) )
-		cand=new_cand
-		done=new_done
-		smallcand = cand - pivotnbrs
-
-
-def compute_mailNumber(node,receivedMails,sentMails,totalMail):
-		totalMail[node] = receivedMails[node] + sentMails[node]
+        # pivot node is max connected in cand from done or cand
+        if maxconndone > maxconn:
+            pivotnbrs = pivotdonenbrs
+        # save search status for later backout
+        stack.append( (cand, done, smallcand) )
+        cand=new_cand
+        done=new_done
+        smallcand = cand - pivotnbrs
 
 def compute_cliqueNumber(liste, node):
-	cpt = 0
-	for clique in liste :
-		if node in clique:
-			cpt = cpt+1
-	return cpt
+    cpt = 0
+    for clique in liste :
+        if node in clique:
+            cpt = cpt+1
+    return cpt
+    
+def hits(graph, auth, hub, max_iter=100, tol=1.0e-8):
+        i = 0
+        for n in graph.getNodes():
+                auth[n] = hub[n] = 1.0 / graph.numberOfNodes()
+        while True:
+                hublast = hub
+                norm = 1.0
+                normsum = 0
+                err = 0
+                for n in graph.getNodes():
+                        auth[n] = 0
+                        for v in graph.getInNodes(n):
+                                auth[n] = auth[n] + hub[v]
+                        normsum = normsum + auth[n]
+                norm = norm / normsum
+                for n in graph.getNodes():
+                        auth[n] = auth[n] * norm
+                norm = 1.0
+                for n in graph.getNodes():
+                        hub[n] = 0
+                        for v in graph.getOutNodes(n):
+                                hub[n] = hub[n] + auth[v]
+                        normsum = normsum + hub[n]
+                norm = norm / normsum
+                for n in graph.getNodes():
+                        hub[n] = hub[n] * norm
+                for n in graph.getNodes():
+                        err = err + abs(hub[n] - hublast[n])
+                if err < tol:
+                        break
+                if i > max_iter:
+                        raise HITSError(\
+                        "HITS: failed to converge in %d iterations."%(i+1))
+                i = i + 1
+        return auth,hub
+	
+def compute_mailNumber(node,receivedMails,sentMails,totalMail):
+        totalMail[node] = receivedMails[node] + sentMails[node]
 
 def compute_RawCliqueScore(liste, node) :
 	rawCliqueScore = 0
@@ -361,25 +363,25 @@ def main(graph):
 	nodeName = graph.getStringProperty("nodeName")
 	nodeDegree =  graph.getDoubleProperty("nodeDegree")
 	betweenessCentrality =  graph.getDoubleProperty("betweenessCentrality")
-	cliqueNumber =  graph.getDoubleProperty("cliqueNumber")	
+	cliqueNumber =  graph.getIntegerProperty("cliqueNumber")	
 	rawUserCliqueScore = graph.getDoubleProperty("rawUserCliqueScore")
 	clusteringCoefficient = graph.getDoubleProperty("clusteringCoefficient")
 	shortestPath = graph.getDoubleProperty("shortestPath")
+	socialScore = graph.getDoubleProperty("socialScore")
 	auth = graph.getDoubleProperty("auth")
 	hub = graph.getDoubleProperty("hub")
 	color = graph.getColorProperty("viewColor")
-	receivedMails = graph.getDoubleProperty("received_mails")
-	sentMails = graph.getDoubleProperty("sent_mails")
-	totalMail = graph.getDoubleProperty("totalMail")
+	receivedMails = graph.getIntegerProperty("received_mails")
+	sentMails = graph.getIntegerProperty("sent_mails")
+	totalMail = graph.getIntegerProperty("totalMail")
 	avgResponseTime = graph.getDoubleProperty("response_time")
-<<<<<<< HEAD
 	weightedCliqueScore = graph.getDoubleProperty("weightedCliqueScore")
-	socialScore = graph.getDoubleProperty("socialScore")
-
-	# Email Corpus parsing   
-   #enronpath = "/net/cremi/cbadiola/travail/bioInfo/enron_mail_20110402/maildirtest/"
-	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir/"
-	myParser = mailParser(graph, enronpath)
+	person = graph.getStringProperty("person")
+	
+	# Email Corpus parsing
+	enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
+	#enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
+	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 	
 	# Structural indicators
@@ -392,7 +394,7 @@ def main(graph):
 		rawUserCliqueScore.setNodeValue(n, CliqueScore)
 		weightedScore = compute_weightedCliqueScore(liste,n,avgResponseTime.getNodeValue(n))
 		weightedCliqueScore.setNodeValue(n,weightedScore)
-		
+	
 	# Degree centrality (nodeDegree)
 	graph.computeDoubleProperty("Degree", nodeDegree)
 
@@ -427,17 +429,3 @@ def main(graph):
 	# List of metrics with their weight to compute the social score
 	metrics = {totalMail:1, avgResponseTime:1, cliqueNumber:1, rawUserCliqueScore:1,weightedCliqueScore:1, nodeDegree:1, clusteringCoefficient:1,shortestPath:1, betweenessCentrality:1, hub:1, auth:1}
 	compute_SocialScore(graph,metrics,socialScore)
-=======
-	person = graph.getStringProperty("person")
-	
-	# Email Corpus parsing
-	enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-	#enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
-	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
-	myParser.parse()
-	
-	# Computation of Metrics
-	compute_mailNumber(graph,receivedMails,sentMails,totalMail)
-	
-	#hits(graph, auth, hub)
->>>>>>> origin/master
