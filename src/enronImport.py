@@ -125,7 +125,9 @@ class mailParser():
 					otherNode = node
 				if first == self.names[node]:
 					firstNode = node
-			edge = self.g.addEdge(firstNode, otherNode)
+			edge = self.g.existEdge(firstNode, otherNode)
+			if not edge.isValid():
+				edge = self.g.addEdge(firstNode, otherNode)
 			self.color[edge] = tlp.Color(255, 0, 0)
 	
 	def register(self, expeditor, recipients, person):
@@ -159,8 +161,10 @@ class mailParser():
 			if not flag:
 				node = self.g.addNode()
 				receptorNode = node
-				self.names[node] = adress			
-			self.g.addEdge(expeditorNode, receptorNode)
+				self.names[node] = adress
+			edge = self.g.existEdge(expeditorNode, receptorNode)
+			if not edge.isValid():
+				self.g.addEdge(expeditorNode, receptorNode)
 			self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1 
 	
 	def propertiesToTulipProperties(self):
@@ -271,44 +275,83 @@ def compute_cliqueNumber(liste, node):
     return cpt
     
 def hits(graph, auth, hub, max_iter=100, tol=1.0e-8):
-	i = 0
-	for n in graph.getNodes():
-		auth[n] = hub[n] = 1.0 / graph.numberOfNodes()
-	while True:
-		hublast = hub
-		norm = 1.0
-		normsum = 0
-		err = 0
-		for n in graph.getNodes():
-			auth[n] = 0
-			for v in graph.getInNodes(n):
-				auth[n] = auth[n] + hub[v]
-			normsum = normsum + auth[n]
-		norm = norm / normsum
-		for n in graph.getNodes():
-			auth[n] = auth[n] * norm
-		norm = 1.0
-		for n in graph.getNodes():
-			hub[n] = 0
-			for v in graph.getOutNodes(n):
-				hub[n] = hub[n] + auth[v]
-			normsum = normsum + hub[n]
-		norm = norm / normsum
-		for n in graph.getNodes():
-			hub[n] = hub[n] * norm
-		for n in graph.getNodes():
-			err = err + abs(hub[n] - hublast[n])
-		if err < tol:
-			break
-		if i > max_iter:
-			raise HITSError(\
-			"HITS: failed to converge in %d iterations."%(i+1))
-		i = i + 1
-	return auth,hub
+        i = 0
+        for n in graph.getNodes():
+                auth[n] = hub[n] = 1.0 / graph.numberOfNodes()
+        while True:
+                hublast = hub
+                norm = 1.0
+                normsum = 0
+                err = 0
+                for n in graph.getNodes():
+                        auth[n] = 0
+                        for v in graph.getInNodes(n):
+                                auth[n] = auth[n] + hub[v]
+                        normsum = normsum + auth[n]
+                norm = norm / normsum
+                for n in graph.getNodes():
+                        auth[n] = auth[n] * norm
+                norm = 1.0
+                for n in graph.getNodes():
+                        hub[n] = 0
+                        for v in graph.getOutNodes(n):
+                                hub[n] = hub[n] + auth[v]
+                        normsum = normsum + hub[n]
+                norm = norm / normsum
+                for n in graph.getNodes():
+                        hub[n] = hub[n] * norm
+                for n in graph.getNodes():
+                        err = err + abs(hub[n] - hublast[n])
+                if err < tol:
+                        break
+                if i > max_iter:
+                        raise HITSError(\
+                        "HITS: failed to converge in %d iterations."%(i+1))
+                i = i + 1
+        return auth,hub
 	
-def compute_mailNumber(graph,receivedMails,sentMails,totalMail):
+def compute_mailNumber(node,receivedMails,sentMails,totalMail):
+        totalMail[node] = receivedMails[node] + sentMails[node]
+
+def compute_RawCliqueScore(liste, node) :
+	rawCliqueScore = 0
+	for clique in liste:
+		if node in clique:
+			rawCliqueScore = 2 * math.exp(len(clique)-1) + rawCliqueScore
+	return rawCliqueScore
+
+def compute_weightedCliqueScore(liste, node, time) :
+	weightedCliqueScore = 0
+	for clique in liste:
+		if node in clique:
+			weightedCliqueScore = time * 2 * math.exp(len(clique)-1) + weightedCliqueScore
+	return weightedCliqueScore
+
+# Normalize the metric on mapped to a [0, 100] scale
+def NormalizeMetricValue(graph, metric) :
+	min = metric.getNodeValue(graph.getOneNode())
+	max = metric.getNodeValue(graph.getOneNode())
+		
 	for n in graph.getNodes():
-		totalMail[n] = receivedMails[n] + sentMails[n]
+		valeur = metric.getNodeValue(n)
+		if valeur > max:
+			max = valeur
+		if valeur < min:
+			min = valeur	
+
+	for n in graph.getNodes():
+		normalizedValue = (100 * ((metric.getNodeValue(n) - min) / (max - min)))
+		metric.setNodeValue(n, normalizedValue)
+
+def compute_SocialScore(graph, metrics, storageProperty) :
+	for n in graph.getNodes():
+		totalWeightedContribution = 0	
+		totalWeigth = 0	
+		for metric,weight in metrics.items():
+			totalWeightedContribution = totalWeightedContribution + metric.getNodeValue(n) * weight
+			totalWeigth = totalWeigth + weight		
+		score = totalWeightedContribution/totalWeigth
+		storageProperty.setNodeValue(n,score)
 
 def main(graph): 
 	for edge in graph.getEdges():
@@ -319,10 +362,9 @@ def main(graph):
 	#Properties of the graph
 	nodeName = graph.getStringProperty("nodeName")
 	nodeDegree =  graph.getDoubleProperty("nodeDegree")
-	nodeCentrality =  graph.getDoubleProperty("nodeCentrality")
+	betweenessCentrality =  graph.getDoubleProperty("betweenessCentrality")
 	cliqueNumber =  graph.getIntegerProperty("cliqueNumber")	
 	rawUserCliqueScore = graph.getDoubleProperty("rawUserCliqueScore")
-	weightedUserCliqueScore = graph.getDoubleProperty("weightedUserCliqueScore")
 	clusteringCoefficient = graph.getDoubleProperty("clusteringCoefficient")
 	shortestPath = graph.getDoubleProperty("shortestPath")
 	socialScore = graph.getDoubleProperty("socialScore")
@@ -333,6 +375,7 @@ def main(graph):
 	sentMails = graph.getIntegerProperty("sent_mails")
 	totalMail = graph.getIntegerProperty("totalMail")
 	avgResponseTime = graph.getDoubleProperty("response_time")
+	weightedCliqueScore = graph.getDoubleProperty("weightedCliqueScore")
 	person = graph.getStringProperty("person")
 	
 	# Email Corpus parsing
@@ -341,7 +384,48 @@ def main(graph):
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 	
-	# Computation of Metrics
-	compute_mailNumber(graph,receivedMails,sentMails,totalMail)
+	# Structural indicators
+	liste = list(find_cliques(graph))
+	for n in graph.getNodes():	
+		compute_mailNumber(n,receivedMails,sentMails,totalMail)
+		nbOccurence = compute_cliqueNumber(liste,n)
+		cliqueNumber.setNodeValue(n,nbOccurence)
+		CliqueScore = compute_RawCliqueScore(liste,n)
+		rawUserCliqueScore.setNodeValue(n, CliqueScore)
+		weightedScore = compute_weightedCliqueScore(liste,n,avgResponseTime.getNodeValue(n))
+		weightedCliqueScore.setNodeValue(n,weightedScore)
 	
-	#hits(graph, auth, hub)
+	# Degree centrality (nodeDegree)
+	graph.computeDoubleProperty("Degree", nodeDegree)
+
+	# Clustering coefficient (clusteringCoefficient)
+	tlp.clusteringCoefficient(graph,clusteringCoefficient,graph.numberOfNodes())
+
+	# Mean of shortest path lenght (shortestPath)
+	dataSet = tlp.DataSet()
+	dataSet["closeness centrality"] = True
+	dataSet["norm"] = False
+	graph.computeDoubleProperty("Eccentricity", shortestPath, dataSet)
+	
+	# Betweeness centrality (betweenessCentrality)
+	graph.computeDoubleProperty("Betweenness Centrality", betweenessCentrality)
+	
+	# Hub and Authorities importance
+	hits(graph, auth, hub)
+
+	# Normalisation des indicateurs sur une echelle [0-100]
+	NormalizeMetricValue(graph,totalMail)
+	NormalizeMetricValue(graph,avgResponseTime)
+	NormalizeMetricValue(graph,cliqueNumber)
+	NormalizeMetricValue(graph,rawUserCliqueScore)
+	NormalizeMetricValue(graph,weightedCliqueScore)
+	NormalizeMetricValue(graph,nodeDegree)
+	NormalizeMetricValue(graph,clusteringCoefficient)
+	NormalizeMetricValue(graph,shortestPath)
+	NormalizeMetricValue(graph,betweenessCentrality)
+	NormalizeMetricValue(graph,hub)
+	NormalizeMetricValue(graph,auth)
+	
+	# List of metrics with their weight to compute the social score
+	metrics = {totalMail:1, avgResponseTime:1, cliqueNumber:1, rawUserCliqueScore:1,weightedCliqueScore:1, nodeDegree:1, clusteringCoefficient:1,shortestPath:1, betweenessCentrality:1, hub:1, auth:1}
+	compute_SocialScore(graph,metrics,socialScore)
