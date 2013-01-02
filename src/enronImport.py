@@ -44,7 +44,7 @@ class mailParser():
 				self.peer[expeditor.strip()] = person
 				self.register(expeditor, recipients, person)
 			currentMail.close()
-		self.personWithMultipleAdress(list(set(expeditors)))
+		#self.personWithMultipleAdress(list(set(expeditors)))
 		if len(set(expeditors)) > 1:
 			self.personWithMultipleAdress(list(set(expeditors)))
 		
