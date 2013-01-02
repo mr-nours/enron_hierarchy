@@ -8,14 +8,15 @@ import os
 import math
 
 class mailParser():
-	def __init__(self, graph, filepath):
+	def __init__(self, graph, receivedMails, sentMails, avgResponseTime, person, filepath):
 		self.f = filepath
 		self.g = graph
 		self.names = self.g.getStringProperty("nodeName")
 		self.color = self.g.getColorProperty("viewColor")
-		self.receivedMails = self.g.getDoubleProperty("received_mails")
-		self.sentMails = self.g.getDoubleProperty("sent_mails")
-		self.avgResponseTime = self.g.getDoubleProperty("response_time")
+		self.receivedMails = receivedMails
+		self.sentMails = sentMails
+		self.avgResponseTime = avgResponseTime
+		self.person = person
 		self.users = {}
 		self.link = {}
 		self.peer = {}
@@ -28,7 +29,6 @@ class mailParser():
 		listing_sent = os.listdir(pathToParse)
 		expeditors = []
 		self.users[person]["sent_list"] = []
-
 		# For each mail sent
 		for file in listing_sent:
 			currentMail = open(pathToParse+file, 'rb')
@@ -40,9 +40,9 @@ class mailParser():
 					self.users[person]["sent_list"].append([to.strip(),date])
 			if type(msg['From']) is str:
 				expeditor = msg['From']
-				expeditors.append(expeditor)
+				expeditors.append(expeditor.strip())
 				self.peer[expeditor.strip()] = person
-			self.register(expeditor, recipients, person)
+				self.register(expeditor, recipients, person)
 			currentMail.close()
 		self.personWithMultipleAdress(list(set(expeditors)))
 		if len(set(expeditors)) > 1:
@@ -86,25 +86,36 @@ class mailParser():
 			self.users[person] = {}
 			self.users[person]["response_time"] = 0.0
 			self.parse_sent(person)
-			self.parse_received(person)
-			#self.computeResponseTime(person)
-			self.propertiesToTulipProperties()
+			#self.parse_received(person)
+			self.computeResponseTime(person)
+		#self.propertiesToTulipProperties()
 		#    print self.users
 	
 	def computeResponseTime(self, person):
+		delta_cpt = 0
 		guyMails = []
 		# Determines the guy's "person" mails.
 		for mail in self.peer:
 			if self.peer[mail] == person:
 				guyMails.append(mail)
 		# For each mail sent, we check if there is a response to one of guy's "person" mails.
-		for pair in self.users[person]["sent_list"]: 
-			for mail in pair[0]: 
-				# If the sent mail has an enron employee associated to itself.
-				if self.peer.has_key(mail):
-					for p in self.users[self.peer[mail]]["sent_list"]:
-						for m in p[0]:
-							pass
+		for pair in self.users[person]["sent_list"]:
+			# If the destination mail has an enron employee associated to itself.
+			if self.peer.has_key(pair[0]):
+				for p in self.users[self.peer[pair[0]]]["sent_list"]:
+					# Response may be found
+					if p[0] in guyMails:
+						if p[1] > pair[1]:
+							delta = p[1] - pair[1]
+							if delta <= self.d:
+								delta_cpt = delta_cpt + 1
+								self.users[person]["response_time"] = self.users[person]["response_time"] + delta.total_seconds()
+		if delta_cpt > 0:
+			self.users[person]["response_time"] = self.users[person]["response_time"] / delta_cpt
+			for adr in guyMails:
+				for node in self.g.getNodes():
+					if adr == self.names[node]:
+						self.avgResponseTime[node] = self.users[person]["response_time"]
 	
 	def personWithMultipleAdress(self, otherAdresses):
 		first = otherAdresses.pop()
@@ -129,8 +140,11 @@ class mailParser():
 		if not flag:
 			node = self.g.addNode()
 			expeditorNode = node
-			self.names[node] = expeditor			
-			self.link[person] = node
+			self.names[node] = expeditor
+			#self.person[node] = person	
+			#self.link[person] = node
+		self.person[expeditorNode] = person
+		self.link[person] = expeditorNode
 		self.sentMails[expeditorNode] = self.sentMails[expeditorNode] + 1 
 
 		#Traitement des recepteurs
@@ -145,8 +159,7 @@ class mailParser():
 			if not flag:
 				node = self.g.addNode()
 				receptorNode = node
-				self.names[node] = adress
-			
+				self.names[node] = adress			
 			self.g.addEdge(expeditorNode, receptorNode)
 			self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1 
 	
@@ -339,7 +352,6 @@ def compute_SocialScore(graph, metrics, storageProperty) :
 		storageProperty.setNodeValue(n,score)
 
 def main(graph): 
-
 	for edge in graph.getEdges():
 		graph.delEdge(edge)
 	for node in graph.getNodes():
@@ -360,6 +372,7 @@ def main(graph):
 	sentMails = graph.getDoubleProperty("sent_mails")
 	totalMail = graph.getDoubleProperty("totalMail")
 	avgResponseTime = graph.getDoubleProperty("response_time")
+<<<<<<< HEAD
 	weightedCliqueScore = graph.getDoubleProperty("weightedCliqueScore")
 	socialScore = graph.getDoubleProperty("socialScore")
 
@@ -414,3 +427,17 @@ def main(graph):
 	# List of metrics with their weight to compute the social score
 	metrics = {totalMail:1, avgResponseTime:1, cliqueNumber:1, rawUserCliqueScore:1,weightedCliqueScore:1, nodeDegree:1, clusteringCoefficient:1,shortestPath:1, betweenessCentrality:1, hub:1, auth:1}
 	compute_SocialScore(graph,metrics,socialScore)
+=======
+	person = graph.getStringProperty("person")
+	
+	# Email Corpus parsing
+	enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
+	#enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
+	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
+	myParser.parse()
+	
+	# Computation of Metrics
+	compute_mailNumber(graph,receivedMails,sentMails,totalMail)
+	
+	#hits(graph, auth, hub)
+>>>>>>> origin/master
