@@ -1,5 +1,5 @@
 from tulip import *
-from email.parser import Parser
+from email.parser import Parser, HeaderParser
 from email.utils import parsedate_tz
 from email.utils import mktime_tz
 from datetime import datetime
@@ -32,7 +32,7 @@ class mailParser():
 		# For each mail sent
 		for file in listing_sent:
 			currentMail = open(pathToParse+file, 'rb')
-			msg = Parser().parse(currentMail)
+			msg = HeaderParser().parse(currentMail)
 			if type(msg['To']) is str:
 				recipients = msg['To'].split(',')
 				date = self.extractDateFromMsg(msg)
@@ -55,7 +55,7 @@ class mailParser():
 		for file in listing_received:
 			if os.path.isfile(pathToParse+file):
 				currentMail = open(pathToParse+file, 'rb')
-				msg = Parser().parse(currentMail)
+				msg = HeaderParser().parse(currentMail)
 				if type(msg['From']) is str:
 					expeditor = msg['From'].strip()
 					date = self.extractDateFromMsg(msg)
