@@ -125,12 +125,8 @@ class mailParser():
 					otherNode = node
 				if first == self.names[node]:
 					firstNode = node
-			edge = self.g.existEdge(otherNode, firstNode, False)
-			if not edge.isValid():			
-				edge = self.g.addEdge(otherNode,firstNode)
-			else:
-				if self.color[edge] != tlp.Color(255, 0, 0):
-					edge = self.g.addEdge(otherNode,firstNode)
+			# Add an edge between the similar email adress 
+			edge = self.g.addEdge(otherNode,firstNode)
 			self.color[edge] = tlp.Color(255, 0, 0)
 	
 	def register(self, expeditor, recipients, person):
