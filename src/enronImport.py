@@ -34,7 +34,7 @@ class mailParser():
 			currentMail = open(pathToParse+file, 'rb')
 			msg = HeaderParser().parse(currentMail)
 			# We verify if we have all the data
-			if type(msg['To']) is str and type(msg['From']) is str and type(msg['Subject']) is str and type(msg['Subject']) is str :
+			if type(msg['To']) is str and type(msg['From']) is str and type(msg['Subject']):
 				if "FW:" not in msg['Subject'] and msg['From'] != "no_address@enron.com" :			
 						recipients = msg['To'].split(',')
 						date = self.extractDateFromMsg(msg)
@@ -44,8 +44,6 @@ class mailParser():
 						expeditors.append(expeditor.strip())
 						self.peer[expeditor.strip()] = person
 						self.register(expeditor, recipients, person)
-				else:
-					print msg['Subject']
 			currentMail.close()
 		#self.personWithMultipleAdress(list(set(expeditors)))
 		if len(set(expeditors)) > 1:
