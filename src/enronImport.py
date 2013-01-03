@@ -164,7 +164,7 @@ class mailParser():
 				node = self.g.addNode()
 				receptorNode = node
 				self.names[node] = adress
-			edge = self.g.existEdge(expeditorNode, receptorNode, False)
+			edge = self.g.existEdge(expeditorNode, receptorNode)
 			if not edge.isValid():
 				self.g.addEdge(expeditorNode, receptorNode)
 			self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1 
