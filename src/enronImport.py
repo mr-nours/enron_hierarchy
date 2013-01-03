@@ -437,9 +437,16 @@ def build_SocialHierarchy(graph, nodeList, level):
 	viewSize =  graph.getSizeProperty("viewSize")
 
 	step = 100/level
-	currentStep = 100 - step	
-	i = 0	
+	currentStep = 100 - step
+	spaceY = 5	
+	positionY = 0
+	i = 1	
 	toDo = []
+
+	# First node position
+	node = nodeList[0].name
+	coord = tlp.Coord(0,0,0)
+	viewLayout[node] = coord
 
 	while i <= graph.numberOfNodes()-1 :	
 		node = nodeList[i].name
@@ -447,21 +454,27 @@ def build_SocialHierarchy(graph, nodeList, level):
 			toDo.append(node)
 			i = i+1
 
-		else:
-			if len(toDo) > 0 : 		
+		if i > graph.numberOfNodes()-1 or socialScore[node] < currentStep :
+			if len(toDo) > 0 :		
+				positionY = positionY - spaceY				
 				# Traiter la liste
-				firstNode = toDo.pop()	
-				nodeSize = viewSize[firstNode].getW()		
-				leftPositionX = (nodeSize - (len(toDo) * nodeSize)/2)
+				firstNode = toDo.pop(0)	
+				nodeSize = viewSize[firstNode].getW()	
+				leftPositionX = (nodeSize - ((len(toDo)+1) * nodeSize))/2
 				coord = tlp.Coord()
 				coord.setX(leftPositionX)
+				coord.setY(positionY)
 				viewLayout[firstNode] = coord
-				for n in toDo:
+				
+				for n in toDo:			
+					print len(toDo)		
 					leftPositionX = leftPositionX + nodeSize
 					coord.setX(leftPositionX)
+					coord.setY(positionY)
 					viewLayout[n] = coord
-					nodeSize = viewSize[n].getW()
-					toDo.remove(n)
+					nodeSize = viewSize[n].getW()			
+				toDo = []
+				
 			currentStep = currentStep-step		
 
 def main(graph): 
