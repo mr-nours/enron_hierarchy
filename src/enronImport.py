@@ -33,19 +33,19 @@ class mailParser():
 		for file in listing_sent:
 			currentMail = open(pathToParse+file, 'rb')
 			msg = HeaderParser().parse(currentMail)
-			if "FW:" not in msg['Subject'] and msg['From'] != "no_address@enron.com" :			
-				if type(msg['To']) is str:
-					recipients = msg['To'].split(',')
-					date = self.extractDateFromMsg(msg)
-					for to in recipients:
-						self.users[person]["sent_list"].append([to.strip(),date])
-				if type(msg['From']) is str:
-					expeditor = msg['From']
-					expeditors.append(expeditor.strip())
-					self.peer[expeditor.strip()] = person
-					self.register(expeditor, recipients, person)
-			else:
-				print msg['Subject']
+			# We verify if we have all the data
+			if type(msg['To']) is str and type(msg['From']) is str and type(msg['Subject']) is str and type(msg['Subject']) is str :
+				if "FW:" not in msg['Subject'] and msg['From'] != "no_address@enron.com" :			
+						recipients = msg['To'].split(',')
+						date = self.extractDateFromMsg(msg)
+						for to in recipients:
+							self.users[person]["sent_list"].append([to.strip(),date])
+						expeditor = msg['From']
+						expeditors.append(expeditor.strip())
+						self.peer[expeditor.strip()] = person
+						self.register(expeditor, recipients, person)
+				else:
+					print msg['Subject']
 			currentMail.close()
 		#self.personWithMultipleAdress(list(set(expeditors)))
 		if len(set(expeditors)) > 1:
@@ -450,7 +450,7 @@ def main(graph):
 	
 	# Email Corpus parsing
 	#enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
+	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir/"
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 
