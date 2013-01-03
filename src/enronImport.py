@@ -125,9 +125,12 @@ class mailParser():
 					otherNode = node
 				if first == self.names[node]:
 					firstNode = node
-			edge = self.g.existEdge(firstNode, otherNode)
-			if not edge.isValid():
-				edge = self.g.addEdge(firstNode, otherNode)
+			edge = self.g.existEdge(otherNode, firstNode, False)
+			if not edge.isValid():			
+				edge = self.g.addEdge(otherNode,firstNode)
+			else:
+				if self.color[edge] != tlp.Color(255, 0, 0):
+					edge = self.g.addEdge(otherNode,firstNode)
 			self.color[edge] = tlp.Color(255, 0, 0)
 	
 	def register(self, expeditor, recipients, person):
@@ -162,7 +165,7 @@ class mailParser():
 				node = self.g.addNode()
 				receptorNode = node
 				self.names[node] = adress
-			edge = self.g.existEdge(expeditorNode, receptorNode)
+			edge = self.g.existEdge(expeditorNode, receptorNode, False)
 			if not edge.isValid():
 				self.g.addEdge(expeditorNode, receptorNode)
 			self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1 
@@ -267,12 +270,7 @@ def find_cliques(graph):
         done=new_done
         smallcand = cand - pivotnbrs
 
-def compute_cliqueNumber(liste, node):
-    cpt = 0
-    for clique in liste :
-        if node in clique:
-            cpt = cpt+1
-    return cpt
+
     
 def hits(graph, auth, hub, max_iter=100, tol=1.0e-8):
         i = 0
@@ -312,6 +310,13 @@ def hits(graph, auth, hub, max_iter=100, tol=1.0e-8):
 	
 def compute_mailNumber(node,receivedMails,sentMails,totalMail):
         totalMail[node] = receivedMails[node] + sentMails[node]
+
+def compute_cliqueNumber(liste, node):
+    cpt = 0
+    for clique in liste :
+        if node in clique:
+            cpt = cpt+1
+    return cpt
 
 def compute_RawCliqueScore(liste, node) :
 	rawCliqueScore = 0
@@ -353,6 +358,72 @@ def compute_SocialScore(graph, metrics, storageProperty) :
 		score = totalWeightedContribution/totalWeigth
 		storageProperty.setNodeValue(n,score)
 
+def node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime,nodeName,tolerance):
+	nodesTodelete = []
+	# If an adress is used by more of tolerance user, it is considered as a common adress email	
+	for n in graph.getNodes():
+		delta = 0
+		time = 0
+		multi = False
+		# We verify if the current node is not a partaged email account		
+		redNumberNode = 0		
+		for vedge in graph.getOutEdges(n):
+			if color[vedge] == tlp.Color(255, 0, 0):
+				redNumberNode = redNumberNode + 1	
+		if redNumberNode <= tolerance:	
+			# Beginin of the fusion			
+			for edge in graph.getInEdges(n):
+				if color[edge] ==tlp.Color(255, 0, 0):
+					sourceEdge = graph.source(edge)
+					# We verify if the distant email account that we want fusion is not a common email adress					
+					redNumber = 0					
+					for e in graph.getOutEdges(sourceEdge):
+						if color[e] == tlp.Color(255, 0, 0):
+							redNumber = redNumber + 1
+					if redNumber <= tolerance:  
+						# Fusion process						
+						multi = True	
+						# Target redirection
+						edgesSourceInEdge = graph.getInEdges(sourceEdge)				
+						for edges in edgesSourceInEdge:				 												
+							# If the edge is red, we update the target							
+							if color[edges] == tlp.Color(255, 0, 0):
+								graph.setTarget(edges,n) 							
+							else :							
+								# If edge don't already exist
+								edgeExist = graph.existEdge(graph.source(edges), n, False)			
+								if not edgeExist.isValid():	
+									graph.setTarget(edges,n)				
+						# Source redirection
+						edgesSourceOutEdge = graph.getOutEdges(sourceEdge)
+						for edges in edgesSourceOutEdge:
+							# If the edge is red, we update the source							
+							if color[edges] == tlp.Color(255, 0, 0):
+								graph.setSource(edges,n)
+							else :
+								# If edge don't already exist
+								target = graph.target(edges)
+								if target != n:					
+									edgeExist = graph.existEdge(n, target, False)	
+									if not edgeExist.isValid():			
+										graph.setSource(edges,n)	
+						# Delete the current red Edge				
+						graph.delEdge(edge)
+						nodesTodelete.append(sourceEdge)	 
+						# Values fusion
+						receivedMails[n] = receivedMails[n] + receivedMails[sourceEdge]
+						sentMails[n] = sentMails[n] + sentMails[sourceEdge]
+						nodeName[n] = nodeName[n]+";"+nodeName[sourceEdge]
+						time = time + avgResponseTime[sourceEdge]
+						delta = delta + 1
+				if multi == True :
+					avgResponseTime[n] = (avgResponseTime[n] + time) / (delta+1)		
+					
+	# Deletion of the nodes fusioned			
+	for node in list(set(nodesTodelete)):
+		graph.delNode(node)	
+
+
 def main(graph): 
 	for edge in graph.getEdges():
 		graph.delEdge(edge)
@@ -363,7 +434,7 @@ def main(graph):
 	nodeName = graph.getStringProperty("nodeName")
 	nodeDegree =  graph.getDoubleProperty("nodeDegree")
 	betweenessCentrality =  graph.getDoubleProperty("betweenessCentrality")
-	cliqueNumber =  graph.getIntegerProperty("cliqueNumber")	
+	cliqueNumber =  graph.getDoubleProperty("cliqueNumber")	
 	rawUserCliqueScore = graph.getDoubleProperty("rawUserCliqueScore")
 	clusteringCoefficient = graph.getDoubleProperty("clusteringCoefficient")
 	shortestPath = graph.getDoubleProperty("shortestPath")
@@ -371,19 +442,23 @@ def main(graph):
 	auth = graph.getDoubleProperty("auth")
 	hub = graph.getDoubleProperty("hub")
 	color = graph.getColorProperty("viewColor")
-	receivedMails = graph.getIntegerProperty("received_mails")
-	sentMails = graph.getIntegerProperty("sent_mails")
-	totalMail = graph.getIntegerProperty("totalMail")
+	receivedMails = graph.getDoubleProperty("received_mails")
+	sentMails = graph.getDoubleProperty("sent_mails")
+	totalMail = graph.getDoubleProperty("totalMail")
 	avgResponseTime = graph.getDoubleProperty("response_time")
 	weightedCliqueScore = graph.getDoubleProperty("weightedCliqueScore")
 	person = graph.getStringProperty("person")
 	
 	# Email Corpus parsing
-	enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-	#enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
+	#enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
+	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir/"
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
-	
+
+	# Fusion of multimail
+	#node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime, nodeName, 2)	
+
+
 	# Structural indicators
 	liste = list(find_cliques(graph))
 	for n in graph.getNodes():	
