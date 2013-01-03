@@ -6,6 +6,7 @@ from datetime import datetime
 from datetime import timedelta
 import os
 import math
+import collections
 
 class mailParser():
 	def __init__(self, graph, receivedMails, sentMails, avgResponseTime, person, filepath):
@@ -35,7 +36,7 @@ class mailParser():
 			msg = HeaderParser().parse(currentMail)
 			# We verify if we have all the data
 			if type(msg['To']) is str and type(msg['From']) is str and type(msg['Subject']):
-				if "FW:" not in msg['Subject'] and msg['From'] != "no_address@enron.com" :			
+				if "FW:" not in msg['Subject'] and msg['From'] != "no.address@enron.com"  and msg['To'] != "no.address@enron.com" :			
 						recipients = msg['To'].split(',')
 						date = self.extractDateFromMsg(msg)
 						for to in recipients:
@@ -420,6 +421,48 @@ def node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime,nodeName,tol
 	for node in list(set(nodesTodelete)):
 		graph.delNode(node)	
 
+def build_OrderedList(graph, socialScore):
+	tuple = collections.namedtuple('tuple', 'score name')
+	list = {}
+	
+	for n in graph.getNodes():
+		list[n] = socialScore[n]
+
+	best = sorted([tuple(v,k) for (k,v) in list.items()], reverse=True)
+	return best
+	
+def build_SocialHierarchy(graph, nodeList, level):
+	viewLayout =  graph.getLayoutProperty("viewLayout")
+	socialScore = graph.getDoubleProperty("socialScore")
+	viewSize =  graph.getSizeProperty("viewSize")
+
+	step = 100/level
+	currentStep = 100 - step	
+	i = 0	
+	toDo = []
+
+	while i <= graph.numberOfNodes()-1 :	
+		node = nodeList[i].name
+		if socialScore[node] >= currentStep:		
+			toDo.append(node)
+			i = i+1
+
+		else:
+			if len(toDo) > 0 : 		
+				# Traiter la liste
+				firstNode = toDo.pop()	
+				nodeSize = viewSize[firstNode].getW()		
+				leftPositionX = (nodeSize - (len(toDo) * nodeSize)/2)
+				coord = tlp.Coord()
+				coord.setX(leftPositionX)
+				viewLayout[firstNode] = coord
+				for n in toDo:
+					leftPositionX = leftPositionX + nodeSize
+					coord.setX(leftPositionX)
+					viewLayout[n] = coord
+					nodeSize = viewSize[n].getW()
+					toDo.remove(n)
+			currentStep = currentStep-step		
 
 def main(graph): 
 	for edge in graph.getEdges():
@@ -448,12 +491,12 @@ def main(graph):
 	
 	# Email Corpus parsing
 	#enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir/"
+	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 
 	# Fusion of multimail
-	#node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime, nodeName, 2)	
+	#node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime, nodeName, 1)	
 
 
 	# Structural indicators
@@ -501,3 +544,7 @@ def main(graph):
 	# List of metrics with their weight to compute the social score
 	metrics = {totalMail:1, avgResponseTime:1, cliqueNumber:1, rawUserCliqueScore:1,weightedCliqueScore:1, nodeDegree:1, clusteringCoefficient:1,shortestPath:1, betweenessCentrality:1, hub:1, auth:1}
 	compute_SocialScore(graph,metrics,socialScore)
+
+	# Display Hierarchy
+	orderedList = build_OrderedList(graph, socialScore)
+	build_SocialHierarchy(graph, orderedList, 5)
