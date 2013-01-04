@@ -46,31 +46,8 @@ class mailParser():
 						self.peer[expeditor.strip()] = person
 						self.register(expeditor, recipients, person)
 			currentMail.close()
-		#self.personWithMultipleAdress(list(set(expeditors)))
 		if len(set(expeditors)) > 1:
 			self.personWithMultipleAdress(list(set(expeditors)))
-		
-	def parse_received(self, person):
-		pathToParse = self.f + person + "/inbox/"
-		listing_received = os.listdir(pathToParse)
-		delta_cpt = 0
-		for file in listing_received:
-			if os.path.isfile(pathToParse+file):
-				currentMail = open(pathToParse+file, 'rb')
-				msg = HeaderParser().parse(currentMail)
-				if type(msg['From']) is str:
-					expeditor = msg['From'].strip()
-					date = self.extractDateFromMsg(msg)
-					for pair in self.users[person]["sent_list"]:
-						if expeditor == pair[0]:
-							if date > pair[1]:
-								delta = date - pair[1]
-								if delta <= self.d:
-									delta_cpt = delta_cpt + 1
-									self.users[person]["response_time"] = self.users[person]["response_time"] + delta.total_seconds()
-									break	
-		if delta_cpt > 0:
-			self.users[person]["response_time"] = self.users[person]["response_time"] / delta_cpt
 	
 	def extractDateFromMsg(self, msg):
 		date = None
@@ -132,7 +109,7 @@ class mailParser():
 			self.color[edge] = tlp.Color(255, 0, 0)
 	
 	def register(self, expeditor, recipients, person):
-		#Traitement de l'expediteur
+		# Traitement de l'expediteur
 		flag = False
 		expeditor = expeditor.strip()
 		for nodes in self.g.getNodes():
@@ -140,33 +117,38 @@ class mailParser():
 				flag = True
 				expeditorNode = nodes
 				break
+
 		if not flag:
 			node = self.g.addNode()
 			expeditorNode = node
 			self.names[node] = expeditor
-			#self.person[node] = person	
-			#self.link[person] = node
+
 		self.person[expeditorNode] = person
 		self.link[person] = expeditorNode
-		self.sentMails[expeditorNode] = self.sentMails[expeditorNode] + 1 
+		self.sentMails[expeditorNode] = self.sentMails[expeditorNode] + 1  
 
 		#Traitement des recepteurs
 		for adress in recipients:
 			adress = adress.strip()
-			flag = False
-			for node in self.g.getNodes():
-				if adress == self.names[node]:
-					flag = True
+			if expeditor != adress:			
+				flag = False
+				for node in self.g.getNodes():
+					if adress == self.names[node]:
+						flag = True
+						receptorNode = node
+						break
+				if not flag:
+					node = self.g.addNode()
 					receptorNode = node
-					break
-			if not flag:
-				node = self.g.addNode()
-				receptorNode = node
-				self.names[node] = adress
-			edge = self.g.existEdge(expeditorNode, receptorNode)
-			if not edge.isValid():
-				self.g.addEdge(expeditorNode, receptorNode)
-			self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1 
+					self.names[node] = adress
+				edge = self.g.existEdge(expeditorNode, receptorNode)
+				if not edge.isValid():
+					self.g.addEdge(expeditorNode, receptorNode)
+	
+				# We increment the number of received Mail of the recipient
+				self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1
+				
+	
 	
 	def propertiesToTulipProperties(self):
 		for person, node in self.link.items():
@@ -431,14 +413,15 @@ def build_OrderedList(graph, socialScore):
 	best = sorted([tuple(v,k) for (k,v) in list.items()], reverse=True)
 	return best
 	
-def build_SocialHierarchy(graph, nodeList, level):
+def build_SocialHierarchy(graph, nodeList, level, height, width):
 	viewLayout =  graph.getLayoutProperty("viewLayout")
 	socialScore = graph.getDoubleProperty("socialScore")
 	viewSize =  graph.getSizeProperty("viewSize")
+	nodeName = graph.getStringProperty("nodeName")
+	viewLabel =  graph.getStringProperty("viewLabel")
 
 	step = 100/level
 	currentStep = 100 - step
-	spaceY = 5	
 	positionY = 0
 	i = 1	
 	toDo = []
@@ -447,7 +430,9 @@ def build_SocialHierarchy(graph, nodeList, level):
 	node = nodeList[0].name
 	coord = tlp.Coord(0,0,0)
 	viewLayout[node] = coord
+	viewLabel[node] = nodeName[node].split(';')[0]
 
+	
 	while i <= graph.numberOfNodes()-1 :	
 		node = nodeList[i].name
 		if socialScore[node] >= currentStep:		
@@ -456,26 +441,31 @@ def build_SocialHierarchy(graph, nodeList, level):
 
 		if i > graph.numberOfNodes()-1 or socialScore[node] < currentStep :
 			if len(toDo) > 0 :		
-				positionY = positionY - spaceY				
+				positionY = positionY - height				
 				# Traiter la liste
 				firstNode = toDo.pop(0)	
 				nodeSize = viewSize[firstNode].getW()	
-				leftPositionX = (nodeSize - ((len(toDo)+1) * nodeSize))/2
+				leftPositionX = ((nodeSize+width) - ((len(toDo)+1) * (nodeSize+width)))/2
 				coord = tlp.Coord()
 				coord.setX(leftPositionX)
 				coord.setY(positionY)
 				viewLayout[firstNode] = coord
+				viewLabel[firstNode] = nodeName[firstNode].split(';')[0]
 				
-				for n in toDo:			
-					print len(toDo)		
-					leftPositionX = leftPositionX + nodeSize
+				for n in toDo:					
+					leftPositionX = leftPositionX + nodeSize + width
 					coord.setX(leftPositionX)
 					coord.setY(positionY)
 					viewLayout[n] = coord
+					viewLabel[n] = nodeName[n].split(';')[0]
 					nodeSize = viewSize[n].getW()			
 				toDo = []
 				
 			currentStep = currentStep-step		
+
+def threshold(graph):
+	receivedMails = graph.getDoubleProperty("received_mails")
+	sentMails = graph.getDoubleProperty("sent_mails")	
 
 def main(graph): 
 	for edge in graph.getEdges():
@@ -495,6 +485,7 @@ def main(graph):
 	auth = graph.getDoubleProperty("auth")
 	hub = graph.getDoubleProperty("hub")
 	color = graph.getColorProperty("viewColor")
+	viewLabel =  graph.getStringProperty("viewLabel")
 	receivedMails = graph.getDoubleProperty("received_mails")
 	sentMails = graph.getDoubleProperty("sent_mails")
 	totalMail = graph.getDoubleProperty("totalMail")
@@ -504,7 +495,7 @@ def main(graph):
 	
 	# Email Corpus parsing
 	#enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
+	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir3/"
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 
@@ -542,7 +533,7 @@ def main(graph):
 	hits(graph, auth, hub)
 
 	# Normalisation des indicateurs sur une echelle [0-100]
-	NormalizeMetricValue(graph,totalMail)
+	#NormalizeMetricValue(graph,totalMail)
 	NormalizeMetricValue(graph,avgResponseTime)
 	NormalizeMetricValue(graph,cliqueNumber)
 	NormalizeMetricValue(graph,rawUserCliqueScore)
@@ -560,4 +551,4 @@ def main(graph):
 
 	# Display Hierarchy
 	orderedList = build_OrderedList(graph, socialScore)
-	build_SocialHierarchy(graph, orderedList, 5)
+	build_SocialHierarchy(graph, orderedList, 10, 10,5)
