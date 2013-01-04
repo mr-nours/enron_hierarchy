@@ -125,7 +125,7 @@ class mailParser():
 
 		self.person[expeditorNode] = person
 		self.link[person] = expeditorNode
-		self.sentMails[expeditorNode] = self.sentMails[expeditorNode] + 1  
+		self.sentMails[expeditorNode] = self.sentMails[expeditorNode] + len(recipients)  
 
 		#Traitement des recepteurs
 		for adress in recipients:
