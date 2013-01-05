@@ -24,28 +24,29 @@ class mailParser():
 		self.d = timedelta(days = 4)
 	
 	def parse_sent(self, person):
-		pathToParse = self.f + person + "/sent_items/"
-		if not os.path.exists(pathToParse):
-			pathToParse = self.f + person + "/sent/"
-		listing_sent = os.listdir(pathToParse)
-		expeditors = []
-		self.users[person]["sent_list"] = []
-		# For each mail sent
-		for file in listing_sent:
-			currentMail = open(pathToParse+file, 'rb')
-			msg = HeaderParser().parse(currentMail)
-			# We verify if we have all the data
-			if type(msg['To']) is str and type(msg['From']) is str and type(msg['Subject']):
-				if "FW:" not in msg['Subject'] and msg['From'] != "no.address@enron.com"  and msg['To'] != "no.address@enron.com" :			
-						recipients = msg['To'].split(',')
-						date = self.extractDateFromMsg(msg)
-						for to in recipients:
-							self.users[person]["sent_list"].append([to.strip(),date])
-						expeditor = msg['From']
-						expeditors.append(expeditor.strip())
-						self.peer[expeditor.strip()] = person
-						self.register(expeditor, recipients, person)
-			currentMail.close()
+		pathToParse = [self.f + person + "/sent_items/" , self.f + person + "/sent/"]
+		expeditors = []		
+		for path in pathToParse :
+			if os.path.exists(pathToParse):
+				#pathToParse = self.f + person + "/sent/"
+				listing_sent = os.listdir(pathToParse)
+				self.users[person]["sent_list"] = []
+				# For each mail sent
+				for file in listing_sent:
+					currentMail = open(pathToParse+file, 'rb')
+					msg = HeaderParser().parse(currentMail)
+					# We verify if we have all the data
+					if type(msg['To']) is str and type(msg['From']) is str and type(msg['Subject']):
+						if "FW:" not in msg['Subject'] and msg['From'] != "no.address@enron.com"  and msg['To'] != "no.address@enron.com" :			
+								recipients = msg['To'].split(',')
+								date = self.extractDateFromMsg(msg)
+								for to in recipients:
+									self.users[person]["sent_list"].append([to.strip(),date])
+								expeditor = msg['From']
+								expeditors.append(expeditor.strip())
+								self.peer[expeditor.strip()] = person
+								self.register(expeditor, recipients, person)
+					currentMail.close()
 		if len(set(expeditors)) > 1:
 			self.personWithMultipleAdress(list(set(expeditors)))
 	
@@ -495,12 +496,12 @@ def main(graph):
 	
 	# Email Corpus parsing
 	#enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir3/"
+	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir/"
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 
 	# Fusion of multimail
-	#node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime, nodeName, 1)	
+	node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime, nodeName, 1)	
 
 
 	# Structural indicators
@@ -533,7 +534,7 @@ def main(graph):
 	hits(graph, auth, hub)
 
 	# Normalisation des indicateurs sur une echelle [0-100]
-	#NormalizeMetricValue(graph,totalMail)
+	NormalizeMetricValue(graph,totalMail)
 	NormalizeMetricValue(graph,avgResponseTime)
 	NormalizeMetricValue(graph,cliqueNumber)
 	NormalizeMetricValue(graph,rawUserCliqueScore)
