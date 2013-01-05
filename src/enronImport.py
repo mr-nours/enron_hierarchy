@@ -24,11 +24,10 @@ class mailParser():
 		self.d = timedelta(days = 4)
 	
 	def parse_sent(self, person):
-		pathToParse = [self.f + person + "/sent_items/" , self.f + person + "/sent/"]
+		pathList = [self.f + person + "/sent_items/" , self.f + person + "/sent/"]
 		expeditors = []		
-		for path in pathToParse :
+		for pathToParse in pathList :
 			if os.path.exists(pathToParse):
-				#pathToParse = self.f + person + "/sent/"
 				listing_sent = os.listdir(pathToParse)
 				self.users[person]["sent_list"] = []
 				# For each mail sent
@@ -496,7 +495,7 @@ def main(graph):
 	
 	# Email Corpus parsing
 	#enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir/"
+	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 
