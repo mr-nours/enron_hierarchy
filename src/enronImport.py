@@ -94,7 +94,7 @@ class mailParser():
 			for adr in guyMails:
 				for node in self.g.getNodes():
 					if adr == self.names[node]:
-						self.avgResponseTime[node] = self.users[person]["response_time"]
+						self.avgResponseTime[node] = 1/self.users[person]["response_time"]
 	
 	def personWithMultipleAdress(self, otherAdresses):
 		first = otherAdresses.pop()
@@ -143,8 +143,10 @@ class mailParser():
 					self.names[node] = adress
 				edge = self.g.existEdge(expeditorNode, receptorNode)
 				if not edge.isValid():
-					self.g.addEdge(expeditorNode, receptorNode)
-	
+					edge = self.g.addEdge(expeditorNode, receptorNode)
+				# Needed for the final visualisation 	
+				edgeNumber = self.g.getDoubleProperty("mailNumber")			
+				edgeNumber[edge] = edgeNumber[edge] + 1
 				# We increment the number of received Mail of the recipient
 				self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1
 				
@@ -328,6 +330,22 @@ def NormalizeMetricValue(graph, metric) :
 		normalizedValue = (100 * ((metric.getNodeValue(n) - min) / (max - min)))
 		metric.setNodeValue(n, normalizedValue)
 
+# Normalize the metric on mapped to a [0, 100] scale
+def NormalizeEdgeMetricValue(graph, metric) :
+	min = metric.getNodeValue(graph.getOneNode())
+	max = metric.getNodeValue(graph.getOneNode())
+		
+	for n in graph.getEdges():
+		valeur = metric.getEdgeValue(n)
+		if valeur > max:
+			max = valeur
+		if valeur < min:
+			min = valeur	
+
+	for n in graph.getEdges():
+		normalizedValue = (100 * ((metric.getEdgeValue(n) - min) / (max - min)))
+		metric.setEdgeValue(n, normalizedValue)
+
 def compute_SocialScore(graph, metrics, storageProperty) :
 	for n in graph.getNodes():
 		totalWeightedContribution = 0	
@@ -413,24 +431,20 @@ def build_OrderedList(graph, socialScore):
 	best = sorted([tuple(v,k) for (k,v) in list.items()], reverse=True)
 	return best
 	
-def build_SocialHierarchy(graph, nodeList, level, height, width):
+def build_SocialHierarchy(graph, nodeList, stepList, height, width):
 	viewLayout =  graph.getLayoutProperty("viewLayout")
 	socialScore = graph.getDoubleProperty("socialScore")
 	viewSize =  graph.getSizeProperty("viewSize")
 	nodeName = graph.getStringProperty("nodeName")
 	viewLabel =  graph.getStringProperty("viewLabel")
+	person = graph.getStringProperty("person")
 
-	step = 100/level
-	currentStep = 100 - step
+	#step = 100/level
+	#currentStep = 100 - step
+	currentStep = stepList.pop()	
 	positionY = 0
-	i = 1	
+	i = 0	
 	toDo = []
-
-	# First node position
-	node = nodeList[0].name
-	coord = tlp.Coord(0,0,0)
-	viewLayout[node] = coord
-	viewLabel[node] = nodeName[node].split(';')[0]
 
 	
 	while i <= graph.numberOfNodes()-1 :	
@@ -450,22 +464,89 @@ def build_SocialHierarchy(graph, nodeList, level, height, width):
 				coord.setX(leftPositionX)
 				coord.setY(positionY)
 				viewLayout[firstNode] = coord
-				viewLabel[firstNode] = nodeName[firstNode].split(';')[0]
+				#viewLabel[firstNode] = nodeName[firstNode].split(';')[0]
+				viewLabel[firstNode] = person[firstNode]
 				
 				for n in toDo:					
 					leftPositionX = leftPositionX + nodeSize + width
 					coord.setX(leftPositionX)
 					coord.setY(positionY)
 					viewLayout[n] = coord
-					viewLabel[n] = nodeName[n].split(';')[0]
+					#viewLabel[n] = nodeName[n].split(';')[0]
+					viewLabel[n] = person[n]
 					nodeSize = viewSize[n].getW()			
 				toDo = []
-				
-			currentStep = currentStep-step		
+			if len(stepList) > 0 : 	
+				currentStep = stepList.pop()
+	
 
-def threshold(graph):
+def threshold(graph, value):
 	receivedMails = graph.getDoubleProperty("received_mails")
-	sentMails = graph.getDoubleProperty("sent_mails")	
+	sentMails = graph.getDoubleProperty("sent_mails")
+	totalMail = graph.getDoubleProperty("totalMail")	
+
+	for n in graph.getNodes():
+		if totalMail[n] < 20:
+			graph.delNode(n)
+
+def enronFilter(graph,person):
+	for n in graph.getNodes():
+		if person[n] == "" :
+			graph.delNode(n)
+
+def visualisationCustom(graph):
+	hub = graph.getDoubleProperty("hub")
+	nodeDegree =  graph.getDoubleProperty("nodeDegree")
+	cliqueNumber =  graph.getDoubleProperty("cliqueNumber")
+	color = graph.getColorProperty("viewColor")
+	viewLabel =  graph.getStringProperty("viewLabel")
+	person = graph.getStringProperty("person")
+	viewSize =  graph.getSizeProperty("viewSize")
+	viewBorderColor =  graph.getColorProperty("viewBorderColor")
+	socialScore = graph.getDoubleProperty("socialScore")
+	viewFontSize =  graph.getIntegerProperty("viewFontSize")
+	viewLabelPosition =  graph.getIntegerProperty("viewLabelPosition")
+	viewLabel =  graph.getStringProperty("viewLabel")
+	person = graph.getStringProperty("person")
+	viewBorderColor =  graph.getColorProperty("viewBorderColor")
+	viewBorderWidth =  graph.getDoubleProperty("viewBorderWidth")
+	mailNumber = graph.getDoubleProperty("mailNumber")
+
+	for n in graph.getNodes():
+		text = int(hub[n]/2)	
+		viewFontSize[n] = 25	
+		viewLabelPosition[n] = tlp.LabelPosition.Top
+
+		s = int(hub[n]/10)	
+		if s == 0 :
+			s = 1	
+		viewSize[n] = tlp.Size(s,s,s)
+		sc = int(socialScore[n])
+		nd = int(nodeDegree[n]*2.5)
+		if sc >= 57 : 		
+			color[n] = tlp.Color(205,42,42,nd)
+			viewBorderColor[n] = tlp.Color(205,42,42,150) 
+		elif sc >= 44 :
+			color[n] = tlp.Color(250,137,17,nd)
+			viewBorderColor[n] = tlp.Color(250,137,17,150)
+		elif sc >= 32 :
+			color[n] = tlp.Color(105,138,67,nd)
+			viewBorderColor[n] = tlp.Color(105,138,67,150)
+		elif sc >= 21 : 
+			color[n] = tlp.Color(125,165,211,nd)
+			viewBorderColor[n] = tlp.Color(121,165,211,150)
+		else :
+			color[n] = tlp.Color(131,131,131,nd)
+			viewBorderColor[n] = tlp.Color(224,224,224,150)
+	
+		viewBorderWidth[n] = 1	
+	
+	for edge in graph.getEdges():
+		s = mailNumber[edge]
+		couleur = color[graph.source(edge)]
+		couleur.setA(int((s+20)*2))
+		color[edge] = couleur
+		viewBorderColor[edge] = tlp.Color(0,0,0,0)
 
 def main(graph): 
 	for edge in graph.getEdges():
@@ -492,16 +573,19 @@ def main(graph):
 	avgResponseTime = graph.getDoubleProperty("response_time")
 	weightedCliqueScore = graph.getDoubleProperty("weightedCliqueScore")
 	person = graph.getStringProperty("person")
+	mailNumber = graph.getDoubleProperty("mailNumber")
 	
 	# Email Corpus parsing
 	#enronpath = "C:/Users/admin/Downloads/enron_mail_20110402/"
-	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir2/"
+	enronpath = "C:/Users/samuel/Desktop/ENRON/enron_mail_20110402/maildir/"
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 
 	# Fusion of multimail
 	node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime, nodeName, 1)	
 
+	# Clean the graph : deletion of non significative node
+	#threshold(graph, 20)
 
 	# Structural indicators
 	liste = list(find_cliques(graph))
@@ -518,20 +602,23 @@ def main(graph):
 	graph.computeDoubleProperty("Degree", nodeDegree)
 
 	# Clustering coefficient (clusteringCoefficient)
-	tlp.clusteringCoefficient(graph,clusteringCoefficient,graph.numberOfNodes())
+	tlp.clusteringCoefficient(graph,clusteringCoefficient)
 
 	# Mean of shortest path lenght (shortestPath)
 	dataSet = tlp.DataSet()
 	dataSet["closeness centrality"] = True
-	dataSet["norm"] = False
+	dataSet["norm"] = True
 	graph.computeDoubleProperty("Eccentricity", shortestPath, dataSet)
 	
 	# Betweeness centrality (betweenessCentrality)
 	graph.computeDoubleProperty("Betweenness Centrality", betweenessCentrality)
-	
+
 	# Hub and Authorities importance
 	hits(graph, auth, hub)
 
+	# Enron filter : delete non enron person
+	enronFilter(graph, person)
+	
 	# Normalisation des indicateurs sur une echelle [0-100]
 	NormalizeMetricValue(graph,totalMail)
 	NormalizeMetricValue(graph,avgResponseTime)
@@ -544,11 +631,17 @@ def main(graph):
 	NormalizeMetricValue(graph,betweenessCentrality)
 	NormalizeMetricValue(graph,hub)
 	NormalizeMetricValue(graph,auth)
+	# Edges : only for visualisation	
+	NormalizeEdgeMetricValue(graph,mailNumber)
 	
 	# List of metrics with their weight to compute the social score
-	metrics = {totalMail:1, avgResponseTime:1, cliqueNumber:1, rawUserCliqueScore:1,weightedCliqueScore:1, nodeDegree:1, clusteringCoefficient:1,shortestPath:1, betweenessCentrality:1, hub:1, auth:1}
+	metrics = {totalMail:0.5, cliqueNumber:2, rawUserCliqueScore:4, nodeDegree:2, clusteringCoefficient:1,shortestPath:5, betweenessCentrality:2, hub:4, auth:1}
 	compute_SocialScore(graph,metrics,socialScore)
 
 	# Display Hierarchy
 	orderedList = build_OrderedList(graph, socialScore)
-	build_SocialHierarchy(graph, orderedList, 10, 10,5)
+	
+	stepList = [0,21, 32,44, 57,84]	
+	visualisationCustom(graph)	
+	build_SocialHierarchy(graph, orderedList, stepList, 10,5)
+	
