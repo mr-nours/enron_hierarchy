@@ -8,6 +8,8 @@ import os
 import math
 import collections
 
+# Class used for the mail parsing process. Also, it computes metrics on flux.
+# Takes a tlp graph, various tlp properties and a path to the mail directory we need to parse.
 class mailParser():
 	def __init__(self, graph, receivedMails, sentMails, avgResponseTime, person, filepath):
 		self.f = filepath
@@ -23,9 +25,12 @@ class mailParser():
 		self.peer = {}
 		self.d = timedelta(days = 4)
 	
+	# Parses a person's sent mails directory
 	def parse_sent(self, person):
+		# We define a list of paths to parse
 		pathList = [self.f + person + "/sent_items/" , self.f + person + "/sent/"]
-		expeditors = []		
+		expeditors = []	
+		# We begin the parsing process for each path in the list	
 		for pathToParse in pathList :
 			if os.path.exists(pathToParse):
 				listing_sent = os.listdir(pathToParse)
@@ -34,21 +39,26 @@ class mailParser():
 				for file in listing_sent:
 					currentMail = open(pathToParse+file, 'rb')
 					msg = HeaderParser().parse(currentMail)
-					# We verify if we have all the data
+					# We verify if we have all the data and no error
 					if type(msg['To']) is str and type(msg['From']) is str and type(msg['Subject']):
+						# We don't want to parse a mail corresponding to these special cases
 						if "FW:" not in msg['Subject'] and msg['From'] != "no.address@enron.com"  and msg['To'] != "no.address@enron.com" :			
 								recipients = msg['To'].split(',')
 								date = self.extractDateFromMsg(msg)
+								# Preparation for the computation of the metrics on flux
 								for to in recipients:
 									self.users[person]["sent_list"].append([to.strip(),date])
 								expeditor = msg['From']
 								expeditors.append(expeditor.strip())
 								self.peer[expeditor.strip()] = person
+								# Creates a link on the graph between the expeditor and its recipients
 								self.register(expeditor, recipients, person)
 					currentMail.close()
+		# Creates a special link between different adresses used by the same person
 		if len(set(expeditors)) > 1:
 			self.personWithMultipleAdress(list(set(expeditors)))
 	
+	# Computes a standard date from a mail date
 	def extractDateFromMsg(self, msg):
 		date = None
 		date_str = msg['Date']
@@ -58,6 +68,7 @@ class mailParser():
 				date = datetime.fromtimestamp(mktime_tz(date_tuple))
 		return date
 	
+	# Main of our mailParser class
 	def parse(self):
 		listing = os.listdir(self.f)
 		# For each person
@@ -65,11 +76,9 @@ class mailParser():
 			self.users[person] = {}
 			self.users[person]["response_time"] = 0.0
 			self.parse_sent(person)
-			#self.parse_received(person)
 			self.computeResponseTime(person)
-		#self.propertiesToTulipProperties()
-		#    print self.users
 	
+	# Computes the average response time score of a person
 	def computeResponseTime(self, person):
 		delta_cpt = 0
 		guyMails = []
@@ -86,9 +95,11 @@ class mailParser():
 					if p[0] in guyMails:
 						if p[1] > pair[1]:
 							delta = p[1] - pair[1]
+							# If the response is not too old, we take it into account
 							if delta <= self.d:
 								delta_cpt = delta_cpt + 1
 								self.users[person]["response_time"] = self.users[person]["response_time"] + delta.total_seconds()
+		# We then register the score into the corresponding tlp property
 		if delta_cpt > 0:
 			self.users[person]["response_time"] = self.users[person]["response_time"] / delta_cpt
 			for adr in guyMails:
@@ -96,6 +107,7 @@ class mailParser():
 					if adr == self.names[node]:
 						self.avgResponseTime[node] = 1/self.users[person]["response_time"]
 	
+	# Creates a special link between the different adresses used by a person
 	def personWithMultipleAdress(self, otherAdresses):
 		first = otherAdresses.pop()
 		for other in otherAdresses:
@@ -104,12 +116,13 @@ class mailParser():
 					otherNode = node
 				if first == self.names[node]:
 					firstNode = node
-			# Add an edge between the similar email adress 
+			# Add an edge between the similar email adresses 
 			edge = self.g.addEdge(otherNode,firstNode)
 			self.color[edge] = tlp.Color(255, 0, 0)
 	
+	# Creates the links between the expeditor and its recipients 
 	def register(self, expeditor, recipients, person):
-		# Traitement de l'expediteur
+		# Expeditor computing
 		flag = False
 		expeditor = expeditor.strip()
 		for nodes in self.g.getNodes():
@@ -117,19 +130,21 @@ class mailParser():
 				flag = True
 				expeditorNode = nodes
 				break
-
+		# If the expeditor is not in the graph, we create a new node
 		if not flag:
 			node = self.g.addNode()
 			expeditorNode = node
 			self.names[node] = expeditor
 
+		# Preprocessing of the metrics on flux
 		self.person[expeditorNode] = person
 		self.link[person] = expeditorNode
 		self.sentMails[expeditorNode] = self.sentMails[expeditorNode] + len(recipients)  
 
-		#Traitement des recepteurs
+		# Recipients computing
 		for adress in recipients:
 			adress = adress.strip()
+			# We don't want to take into account a mail sent from oneself to oneself
 			if expeditor != adress:			
 				flag = False
 				for node in self.g.getNodes():
@@ -137,29 +152,77 @@ class mailParser():
 						flag = True
 						receptorNode = node
 						break
+				# If the recipient is not in the graph, we create a new node
 				if not flag:
 					node = self.g.addNode()
 					receptorNode = node
 					self.names[node] = adress
+				# We create the connexion between the expeditor and the recipients
 				edge = self.g.existEdge(expeditorNode, receptorNode)
 				if not edge.isValid():
 					edge = self.g.addEdge(expeditorNode, receptorNode)
 				# Needed for the final visualisation 	
 				edgeNumber = self.g.getDoubleProperty("mailNumber")			
 				edgeNumber[edge] = edgeNumber[edge] + 1
-				# We increment the number of received Mail of the recipient
+				# We increment the number of received mails of the recipient
 				self.receivedMails[receptorNode] = self.receivedMails[receptorNode] + 1
 				
 	
-	
+	# Deprecated. Used to transfer a class property into a Tlp property
 	def propertiesToTulipProperties(self):
 		for person, node in self.link.items():
 			self.avgResponseTime[node] = self.users[person]["response_time"]
 
 
 #End of MailParse class
-
+ 
 def find_cliques(graph):
+	"""Search for all maximal cliques in a graph.
+
+    Maximal cliques are the largest complete subgraph containing
+    a given node.  The largest maximal clique is sometimes called
+    the maximum clique.
+
+    Returns
+    -------
+    generator of lists: generator of member list for each maximal clique
+    
+    Notes
+    -----
+    To obtain a list of cliques, use list(find_cliques(G)).
+
+    Based on the algorithm published by Bron & Kerbosch (1973)
+    as adapated by Tomita, Tanaka and Takahashi (2006)
+    and discussed in Cazals and Karande (2008).
+    
+    This algorithm ignores self-loops and parallel edges as
+    clique is not conventionally defined with such edges.
+
+    There are often many cliques in graphs.  This algorithm can
+    run out of memory for large graphs.
+    
+     References
+    ----------
+    .. [1] Bron, C. and Kerbosch, J. 1973.
+       Algorithm 457: finding all cliques of an undirected graph.
+       Commun. ACM 16, 9 (Sep. 1973), 575-577.
+       http://portal.acm.org/citation.cfm?doid=362342.362367
+
+    .. [2] Etsuji Tomita, Akira Tanaka, Haruhisa Takahashi,
+       The worst-case time complexity for generating all maximal
+       cliques and computational experiments,
+       Theoretical Computer Science, Volume 363, Issue 1,
+       Computing and Combinatorics,
+       10th Annual International Conference on
+       Computing and Combinatorics (COCOON 2004), 25 October 2006, Pages 28-42
+       http://dx.doi.org/10.1016/j.tcs.2006.06.015
+
+    .. [3] F. Cazals, C. Karande,
+       A note on the problem of reporting maximal cliques,
+       Theoretical Computer Science,
+       Volume 407, Issues 1-3, 6 November 2008, Pages 564-568,
+       http://dx.doi.org/10.1016/j.tcs.2008.05.010
+    """
     #Cache nbrs and find first pivot (highest degree)
     maxconn=-1
     nnbrs={}
@@ -253,37 +316,48 @@ def find_cliques(graph):
         smallcand = cand - pivotnbrs
 
 
-    
+# Computes the authority and the hub score for each node in the input graph.
+# Adaptation of the HITS algorithm by Jon Kleinberg.
+# Defines a maximum number of iterations, and a tolerance value in order to verify
+# that auth and hub do converge.
 def hits(graph, auth, hub, max_iter=100, tol=1.0e-8):
         i = 0
+        # Initialization step
         for n in graph.getNodes():
                 auth[n] = hub[n] = 1.0 / graph.numberOfNodes()
+        # Perpetual loop. Stops when max_iter is reached or when hub converges.
         while True:
                 hublast = hub
                 norm = 1.0
                 normsum = 0
                 err = 0
+                # We update the auth score for each node
                 for n in graph.getNodes():
                         auth[n] = 0
                         for v in graph.getInNodes(n):
                                 auth[n] = auth[n] + hub[v]
                         normsum = normsum + auth[n]
                 norm = norm / normsum
+                # Normalization of auth
                 for n in graph.getNodes():
                         auth[n] = auth[n] * norm
                 norm = 1.0
+                # We update the hub score for each node
                 for n in graph.getNodes():
                         hub[n] = 0
                         for v in graph.getOutNodes(n):
                                 hub[n] = hub[n] + auth[v]
                         normsum = normsum + hub[n]
                 norm = norm / normsum
+                # Normalization of hub
                 for n in graph.getNodes():
                         hub[n] = hub[n] * norm
                 for n in graph.getNodes():
                         err = err + abs(hub[n] - hublast[n])
+                # When hub converges, we can stop the perpetual loop
                 if err < tol:
                         break
+                # But if we reach max_iter, then it means we failed the calculation
                 if i > max_iter:
                         raise HITSError(\
                         "HITS: failed to converge in %d iterations."%(i+1))
@@ -314,7 +388,7 @@ def compute_weightedCliqueScore(liste, node, time) :
 			weightedCliqueScore = time * 2 * math.exp(len(clique)-1) + weightedCliqueScore
 	return weightedCliqueScore
 
-# Normalize the metric on mapped to a [0, 100] scale
+# Normalizes the metrics, mapped to a [0, 100] scale
 def NormalizeMetricValue(graph, metric) :
 	min = metric.getNodeValue(graph.getOneNode())
 	max = metric.getNodeValue(graph.getOneNode())
@@ -330,7 +404,8 @@ def NormalizeMetricValue(graph, metric) :
 		normalizedValue = (100 * ((metric.getNodeValue(n) - min) / (max - min)))
 		metric.setNodeValue(n, normalizedValue)
 
-# Normalize the metric on mapped to a [0, 100] scale
+# Normalizes the metrics, mapped to a [0, 100] scale
+# Edges version
 def NormalizeEdgeMetricValue(graph, metric) :
 	min = metric.getNodeValue(graph.getOneNode())
 	max = metric.getNodeValue(graph.getOneNode())
@@ -346,6 +421,9 @@ def NormalizeEdgeMetricValue(graph, metric) :
 		normalizedValue = (100 * ((metric.getEdgeValue(n) - min) / (max - min)))
 		metric.setEdgeValue(n, normalizedValue)
 
+# We use a set of normalized metrics to compute the social score.
+# metrics is a list of the metrics we want to use to compute the social score.
+# storageProperty is where we put the social score.
 def compute_SocialScore(graph, metrics, storageProperty) :
 	for n in graph.getNodes():
 		totalWeightedContribution = 0	
@@ -356,30 +434,31 @@ def compute_SocialScore(graph, metrics, storageProperty) :
 		score = totalWeightedContribution/totalWeigth
 		storageProperty.setNodeValue(n,score)
 
+# Merges nodes representing different adresses of a person.
 def node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime,nodeName,tolerance):
 	nodesTodelete = []
-	# If an adress is used by more of tolerance user, it is considered as a common adress email	
+	# If an adress is used by more than "tolerance" user, it is considered a common shared adress	
 	for n in graph.getNodes():
 		delta = 0
 		time = 0
 		multi = False
-		# We verify if the current node is not a partaged email account		
+		# We verify if the current node is not a shared email account	
 		redNumberNode = 0		
 		for vedge in graph.getOutEdges(n):
 			if color[vedge] == tlp.Color(255, 0, 0):
 				redNumberNode = redNumberNode + 1	
 		if redNumberNode <= tolerance:	
-			# Beginin of the fusion			
+			# Beginning of the merge			
 			for edge in graph.getInEdges(n):
 				if color[edge] ==tlp.Color(255, 0, 0):
 					sourceEdge = graph.source(edge)
-					# We verify if the distant email account that we want fusion is not a common email adress					
+					# We verify if the distant email account that we want to merge is not a common shared adress					
 					redNumber = 0					
 					for e in graph.getOutEdges(sourceEdge):
 						if color[e] == tlp.Color(255, 0, 0):
 							redNumber = redNumber + 1
 					if redNumber <= tolerance:  
-						# Fusion process						
+						# Merging process						
 						multi = True	
 						# Target redirection
 						edgesSourceInEdge = graph.getInEdges(sourceEdge)				
@@ -388,7 +467,7 @@ def node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime,nodeName,tol
 							if color[edges] == tlp.Color(255, 0, 0):
 								graph.setTarget(edges,n) 							
 							else :							
-								# If edge don't already exist
+								# If edge doesn't already exist
 								edgeExist = graph.existEdge(graph.source(edges), n, False)			
 								if not edgeExist.isValid():	
 									graph.setTarget(edges,n)				
@@ -399,16 +478,16 @@ def node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime,nodeName,tol
 							if color[edges] == tlp.Color(255, 0, 0):
 								graph.setSource(edges,n)
 							else :
-								# If edge don't already exist
+								# If edge doesn't already exist
 								target = graph.target(edges)
 								if target != n:					
 									edgeExist = graph.existEdge(n, target, False)	
 									if not edgeExist.isValid():			
 										graph.setSource(edges,n)	
-						# Delete the current red Edge				
+						# Delete the current red edge				
 						graph.delEdge(edge)
 						nodesTodelete.append(sourceEdge)	 
-						# Values fusion
+						# Values merging
 						receivedMails[n] = receivedMails[n] + receivedMails[sourceEdge]
 						sentMails[n] = sentMails[n] + sentMails[sourceEdge]
 						nodeName[n] = nodeName[n]+";"+nodeName[sourceEdge]
@@ -417,10 +496,12 @@ def node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime,nodeName,tol
 				if multi == True :
 					avgResponseTime[n] = (avgResponseTime[n] + time) / (delta+1)		
 					
-	# Deletion of the nodes fusioned			
+	# Deletion of the merged nodes			
 	for node in list(set(nodesTodelete)):
 		graph.delNode(node)	
 
+# Utility algorithm to ease the computation of the hierarchical view
+# It sorts the tlp property and returns a python sorted list
 def build_OrderedList(graph, socialScore):
 	tuple = collections.namedtuple('tuple', 'score name')
 	list = {}
@@ -430,7 +511,8 @@ def build_OrderedList(graph, socialScore):
 
 	best = sorted([tuple(v,k) for (k,v) in list.items()], reverse=True)
 	return best
-	
+
+# Builds the hierarchical view
 def build_SocialHierarchy(graph, nodeList, stepList, height, width):
 	viewLayout =  graph.getLayoutProperty("viewLayout")
 	socialScore = graph.getDoubleProperty("socialScore")
@@ -439,8 +521,6 @@ def build_SocialHierarchy(graph, nodeList, stepList, height, width):
 	viewLabel =  graph.getStringProperty("viewLabel")
 	person = graph.getStringProperty("person")
 
-	#step = 100/level
-	#currentStep = 100 - step
 	currentStep = stepList.pop()	
 	positionY = 0
 	i = 0	
@@ -456,7 +536,7 @@ def build_SocialHierarchy(graph, nodeList, stepList, height, width):
 		if i > graph.numberOfNodes()-1 or socialScore[node] < currentStep :
 			if len(toDo) > 0 :		
 				positionY = positionY - height				
-				# Traiter la liste
+				# Process the list
 				firstNode = toDo.pop(0)	
 				nodeSize = viewSize[firstNode].getW()	
 				leftPositionX = ((nodeSize+width) - ((len(toDo)+1) * (nodeSize+width)))/2
@@ -464,7 +544,6 @@ def build_SocialHierarchy(graph, nodeList, stepList, height, width):
 				coord.setX(leftPositionX)
 				coord.setY(positionY)
 				viewLayout[firstNode] = coord
-				#viewLabel[firstNode] = nodeName[firstNode].split(';')[0]
 				viewLabel[firstNode] = person[firstNode]
 				
 				for n in toDo:					
@@ -472,14 +551,13 @@ def build_SocialHierarchy(graph, nodeList, stepList, height, width):
 					coord.setX(leftPositionX)
 					coord.setY(positionY)
 					viewLayout[n] = coord
-					#viewLabel[n] = nodeName[n].split(';')[0]
 					viewLabel[n] = person[n]
 					nodeSize = viewSize[n].getW()			
 				toDo = []
 			if len(stepList) > 0 : 	
 				currentStep = stepList.pop()
 	
-
+# Deletes negligible nodes
 def threshold(graph, value):
 	receivedMails = graph.getDoubleProperty("received_mails")
 	sentMails = graph.getDoubleProperty("sent_mails")
@@ -489,6 +567,7 @@ def threshold(graph, value):
 		if totalMail[n] < 20:
 			graph.delNode(n)
 
+# Deletes non-Enron nodes
 def enronFilter(graph,person):
 	for n in graph.getNodes():
 		if person[n] == "" :
@@ -581,10 +660,10 @@ def main(graph):
 	myParser = mailParser(graph, receivedMails, sentMails, avgResponseTime, person, enronpath)
 	myParser.parse()
 
-	# Fusion of multimail
+	# Merging of multimail
 	node_Fusion(graph,color,receivedMails,sentMails,avgResponseTime, nodeName, 1)	
 
-	# Clean the graph : deletion of non significative node
+	# Cleans the graph : deletion of non signifiant nodes
 	#threshold(graph, 20)
 
 	# Structural indicators
@@ -616,7 +695,7 @@ def main(graph):
 	# Hub and Authorities importance
 	hits(graph, auth, hub)
 
-	# Enron filter : delete non enron person
+	# Enron filter : deletes non enron persons
 	enronFilter(graph, person)
 	
 	# Normalisation des indicateurs sur une echelle [0-100]
